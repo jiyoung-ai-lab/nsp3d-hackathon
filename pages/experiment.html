@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSP3D Experiment Lab (private, local-only)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #060b16; color: #dbe7f3; font: 13px/1.5 system-ui, sans-serif; }
+  header { padding: 10px 14px; border-bottom: 1px solid #16233a; display: flex; gap: 12px; align-items: baseline; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 650; }
+  header .sub { color: #8fa6c2; font-size: 12px; }
+  main { display: grid; grid-template-columns: 660px 1fr; gap: 12px; padding: 12px 14px; max-width: 1440px; }
+  .panel { background: #0b1424; border: 1px solid #16233a; border-radius: 8px; padding: 10px 12px; }
+  .panel h2 { font-size: 12px; margin: 0 0 8px; color: #8fa6c2; font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  label { color: #8fa6c2; font-size: 12px; }
+  select, input[type=number] { background: #060b16; color: #dbe7f3; border: 1px solid #27405f; border-radius: 5px; padding: 4px 6px; font-size: 12px; }
+  button { background: #12325a; color: #dbe7f3; border: 1px solid #27405f; border-radius: 5px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  button:hover { background: #1a4478; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.warn { background: #4a1620; border-color: #7a2a38; }
+  #cfgList { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 10px; max-height: 130px; overflow-y: auto; margin-bottom: 8px; }
+  #cfgList label { display: flex; gap: 6px; align-items: center; font-size: 12px; color: #b9cdf3; cursor: pointer; }
+  #slotGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  #slotGrid.single { grid-template-columns: 1fr; }
+  .slot { background: #060b16; border: 1px solid #16233a; border-radius: 5px; padding: 6px; }
+  .slot canvas { width: 100%; display: block; background: #030916; border-radius: 4px; }
+  .slot .sstat { font-family: ui-monospace, monospace; font-size: 11px; color: #b9cdf3; white-space: pre-wrap; min-height: 48px; margin-top: 4px; }
+  .slot .shead { font-size: 11px; color: #7dd3a8; display: flex; justify-content: space-between; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { border-bottom: 1px solid #16233a; padding: 4px 6px; text-align: right; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.best td { background: #0e2a1c; }
+  tr.ok td:nth-child(3)::before { content: "● "; color: #2fe36b; }
+  tr.fail td:nth-child(3)::before { content: "● "; color: #f0586a; }
+  #errOverlay { display: none; background: #4a1620; color: #ffd7dc; padding: 8px 12px; font-size: 12px; white-space: pre-wrap; }
+  .note { color: #8fa6c2; font-size: 11px; }
+  .panel { overflow-x: auto; }
+  #sumTable, #resTable { min-width: 460px; }
+  #analysisOut table { min-width: 540px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  .charts { display: grid; grid-template-columns: 1fr; gap: 8px; }
+  .chartwrap { position: relative; height: 190px; background: #060b16; border: 1px solid #16233a; border-radius: 5px; padding: 4px; }
+  .chartwrap canvas { width: 100% !important; height: 100% !important; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="errOverlay"></div>
+<header>
+  <h1>NSP3D Experiment Lab</h1>
+  <span class="sub">private validation harness — localhost only, results stay on this machine (GitHub: source only)</span>
+</header>
+<main>
+  <div>
+    <div class="panel">
+      <h2>Batch batch 실행 (max 4 slots, concurrent)</h2>
+      <div id="cfgList"></div>
+      <div class="row">
+        <label>runs each <input id="runsIn" type="number" value="10" min="1" max="200" style="width:64px"></label>
+        <label>seed <input id="seedIn" type="number" value="20261026" style="width:110px"></label>
+        <label>render <select id="renderSel"><option value="on">ON</option><option value="off">OFF (physics+neurons only)</option></select></label>
+      </div>
+      <div class="row">
+        <button id="startBtn">Start 시작</button>
+        <button id="stopBtn" class="warn" disabled>Stop 중지</button>
+        <span class="note" id="selInfo"></span>
+      </div>
+      <div class="note">fps <span id="fps">—</span> · sim-time sampling (fly.elapsed), fixed step 1/60 · 1 config checked = all slots share it (seed+slot×1000)</div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Slots 2×2 (render OFF면 정지, steps/s로 속도 확인)</h2>
+      <div id="slotGrid" class="single"></div>
+    </div>
+  </div>
+  <div>
+    <div class="panel">
+      <h2>Summary config 비교 (completed runs only — best = success rate, ties → time → collisions)</h2>
+      <div id="bestLine" class="note" style="margin-bottom:6px">no runs yet</div>
+      <table id="sumTable"><thead><tr><th>config</th><th>runs</th><th>success</th><th>mean s</th><th>mean coll</th><th>best run</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Runs 실행 기록</h2>
+      <table id="resTable"><thead><tr><th>config</th><th>run</th><th>success</th><th>time s</th><th>coll</th><th>path m</th><th>avg m/s</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Graphs 그래프 (real runs only)</h2>
+      <div id="chartNote" class="note" style="margin-bottom:6px">waiting for runs…</div>
+      <div class="charts"><div class="chartwrap"><canvas id="chSuccess"></canvas></div><div class="chartwrap"><canvas id="chColl"></canvas></div><div class="chartwrap"><canvas id="chTime"></canvas></div></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Analysis 로컬 분석 (in-page, analyze.py와 동일 로직)</h2>
+      <div class="row"><button id="analyzeBtn">Analyze 분석</button><span class="note">batch end auto-runs</span></div>
+      <div id="analysisOut" class="note">no analysis yet</div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Export 내보내기 (local files only)</h2>
+      <div class="row">
+        <button id="expLog">flight_log.jsonl</button>
+        <button id="expJson">results.json</button>
+        <button id="expCsv">results.csv</button>
+      </div>
+      <div class="note">flight_log rows: real signals only. LPLC2_Hz / DNp06_cmd / A* taps deferred — not fabricated.</div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Usage 토큰 한도 (local note — enforced by analyze.py)</h2>
+      <div class="row">
+        <label>token limit <input id="tokLimit" type="number" value="5000000" min="0" step="100000" style="width:120px"></label>
+        <button id="copyAnalyze">copy analyze command</button>
+      </div>
+      <div class="note">Page cannot read local credit_log.jsonl. The gate runs in analyze.py --llm --token-limit N (auto-stop before the call).</div>
+    </div>
+  </div>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD, CAMERA_PIPELINE, NSP3D_VERSION, dateSeed } from '../src/config.js';
+import { DECODER_BUILD } from '../src/vision/camera-vision.js';
+import { createFlightConnectome, mergeFlightGraphs, SNN_BUILD } from '../src/nn/graph-network.js';
+import { senseVision, createCameraRuleController, CONTROLLER_BUILD } from '../src/sim/camera-controller.js';
+import { decayTouch, isStalled } from '../src/sim/flight-physics.js';
+import { consumeSteps, SIM_STEP_H } from '../src/sim/step-clock.js';
+import {
+  W, Y, Z, clamp, makeWorld, advanceWorld, buildStaticScene,
+  buildObstacleMesh, clearWorld, EyeRig, createFlightState, movement,
+} from '../src/sim/sim-core.js';
+import { createBee } from '../src/ui/hand-drawn-bee.js';
+
+const $ = (id) => document.getElementById(id);
+const errBox = $('errOverlay');
+// Build stamp: bump on every sim-code change. Recorded in results.json + __expDbg
+// so a stale browser tab can never silently invalidate an experiment again.
+const BUILD = '2026-10-29.7+vfh-valley';
+window.addEventListener('error', (e) => { errBox.style.display = 'block'; errBox.textContent = 'Error: ' + (e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => { errBox.style.display = 'block'; errBox.textContent = 'Error: ' + (e.reason?.message || e.reason); });
+
+// ---------- params / configs / maze shells ----------
+const Q = new URLSearchParams(location.search);
+const META = await fetch(Q.get('cfgfile') || '../experiments/configs.json').then((r) => r.json());
+const CONFIGS = META.configs;
+const MAZES = await fetch('../experiments/mazes.json').then((r) => r.json());
+const shellOf = (id) => MAZES.mazes.find((m) => m.id === id) || { id, builtin: id };
+const byId = (id) => CONFIGS.find((c) => c.config_id === id);
+const qConfigs = (Q.get('configs') || Q.get('config') || 'cfg01').split(',').map((s) => s.trim()).filter(Boolean);
+for (const c of CONFIGS) {
+  const sh = shellOf(c.maze); // maze 1/3 hidden (open_arena/s_maze) — retest later, configs untouched
+  if (sh.builtin === 'open_arena' || sh.builtin === 's_maze') continue;
+  const lab = document.createElement('label');
+  const cb = document.createElement('input');
+  cb.type = 'checkbox'; cb.value = c.config_id; cb.checked = qConfigs.includes(c.config_id);
+  cb.addEventListener('change', () => {
+    const on = [...document.querySelectorAll('#cfgList input:checked')];
+    if (on.length > 4) { cb.checked = false; return; }
+    updateSel();
+  });
+  lab.append(cb, document.createTextNode(`${c.config_id} ${c.maze} ${c.visionMode}/${c.sensor} ${c.neuronModel === 'alif_surrogate' ? 'ALIF' : 'LIF'}`));
+  $('cfgList').appendChild(lab);
+}
+if (!document.querySelector('#cfgList input:checked')) document.querySelector('#cfgList input').checked = true;
+$('runsIn').value = Q.get('runs') || 10;
+$('seedIn').value = Q.get('seed') || dateSeed();
+$('renderSel').value = Q.get('render') === 'off' ? 'off' : 'on';
+function selectedCfgs() {
+  // Trial-knob overrides (Ax runner): ?sens= ?cruise= ?maxt= patch cloned configs.
+  return [...document.querySelectorAll('#cfgList input:checked')].map((el) => {
+    const c = byId(el.value);
+    if (!c) return null;
+    const o = { ...c };
+    if (Q.get('sens')) o.vision_sensitivity = +Q.get('sens');
+    if (Q.get('cruise')) o.cruise_ms = +Q.get('cruise');
+    if (Q.get('maxt')) o.max_time_s = +Q.get('maxt');
+    return o;
+  }).filter(Boolean).slice(0, 4);
+}
+function updateSel() {
+  const s = selectedCfgs();
+  $('selInfo').textContent = `${s.length} slot(s): ${s.map((c) => c.config_id).join(', ')}`;
+}
+updateSel();
+
+// ---------- shared assets ----------
+async function loadGraphFile(url) {
+  const text = await (await fetch(url)).text();
+  const m = text.match(/window\.(?:FLIGHT_GRAPH|FLIGHT_CIRCUIT_EXTENSION)\s*=\s*(\{[\s\S]*\});?\s*$/);
+  const obj = m ? JSON.parse(m[1]) : JSON.parse(text);
+  if (!obj.edges && Array.isArray(obj.pairs)) {
+    obj.edges = obj.pairs.map((p) => ({ source: p.src ?? p.source, target: p.dst ?? p.target, weight: p.w ?? p.weight }));
+  }
+  return obj;
+}
+let loadedGraph = null;
+try {
+  const base = await loadGraphFile('../vendor/connectome/flight-graph.js');
+  const ext = await loadGraphFile('../vendor/connectome/flight-circuit-extension.js');
+  loadedGraph = mergeFlightGraphs(base, ext);
+} catch (e) { errBox.style.display = 'block'; errBox.textContent = 'graph load failed: ' + e.message; }
+let pretrained = null;
+try { pretrained = await fetch('../data/pretrained-gains.json').then((r) => r.json()); } catch (e) { /* optional */ }
+async function ensureAlif() {
+  if (globalThis.ALIFSurrogatePlugin) return true;
+  try {
+    const m = await import('../src/vision/alif-surrogate-plugin.js');
+    globalThis.ALIFSurrogatePlugin = m.ALIFSurrogatePlugin;
+    return true;
+  } catch (e) { return false; }
+}
+
+// Stale-module guard: static imports may come from HTTP cache while sim files
+// changed on disk. Compare against a cache-busted dynamic import; refuse to
+// run on mismatch so no experiment ever silently uses stale code.
+let STALE_MODULES = null;
+async function checkFreshness() {
+  try {
+    const fresh = await import(`../src/vision/camera-vision.js?v=${encodeURIComponent(BUILD)}`);
+    if (fresh.DECODER_BUILD !== DECODER_BUILD) {
+      STALE_MODULES = `decoder static=${DECODER_BUILD} fresh=${fresh.DECODER_BUILD}`;
+    }
+    const freshCtl = await import(`../src/sim/camera-controller.js?v=${encodeURIComponent(BUILD)}`);
+    if (freshCtl.CONTROLLER_BUILD !== CONTROLLER_BUILD) {
+      STALE_MODULES = (STALE_MODULES ? STALE_MODULES + '; ' : '') + `controller static=${CONTROLLER_BUILD} fresh=${freshCtl.CONTROLLER_BUILD}`;
+    }
+    const freshSnn = await import(`../src/nn/graph-network.js?v=${encodeURIComponent(BUILD)}`);
+    if (freshSnn.SNN_BUILD !== SNN_BUILD) {
+      STALE_MODULES = (STALE_MODULES ? STALE_MODULES + '; ' : '') + `snn static=${SNN_BUILD} fresh=${freshSnn.SNN_BUILD}`;
+    }
+  } catch (e) { STALE_MODULES = 'freshness check failed: ' + (e.message || e); }
+  if (STALE_MODULES) {
+    errBox.style.display = 'block';
+    errBox.textContent = 'STALE MODULES — Ctrl+F5 (hard reload) until this clears. ' + STALE_MODULES;
+  }
+  return STALE_MODULES;
+}
+const freshnessChecked = checkFreshness();
+document.title = `[${NSP3D_VERSION}] ` + document.title;
+
+// ---------- slots (independent sim each) ----------
+const ZERO_VISION = () => ({
+  leftThreat: 0, rightThreat: 0, frontThreat: 0, upThreat: 0, downThreat: 0,
+  loomingL: 0, loomingR: 0, motionL: 0, motionR: 0, escapeDirection: 1,
+  grid: Array(9).fill(0), upperRoute: 0, lowerRoute: 0, centerObstacle: 0,
+  goalPixels: 0, goalVisible: 0, goalLockX: 0, goalLockY: 0,
+});
+const r4 = (v) => +Number(v).toFixed(4);
+const B = {
+  slots: [], running: false, stopReq: false, renderOn: true,
+  flightLog: [], perConfig: {}, batchDone: true,
+};
+function createSlotDom(idx, single) {
+  const div = document.createElement('div');
+  div.className = 'slot';
+  div.innerHTML = `<div class="shead"><span class="stitle">slot ${idx}</span><span class="ssteps">— steps/s</span></div><div class="sview"></div><div class="sstat">idle</div>`;
+  $('slotGrid').appendChild(div);
+  return div;
+}
+function createSlot(idx, single) {
+  const dom = createSlotDom(idx, single);
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.setPixelRatio(1);
+  const vw = single ? 636 : 308, vh = single ? 300 : 150;
+  renderer.setSize(vw, vh);
+  dom.querySelector('.sview').appendChild(renderer.domElement);
+  const H = buildStaticScene();
+  H.scene.background = new THREE.Color(0x060914);
+  const bee = createBee(THREE, { wingScale: 0.83 });
+  bee.traverse((o) => o.layers.set(1));
+  H.scene.add(bee);
+  H.observerCamera.position.set(0, 0.62, 0.78);
+  H.observerCamera.lookAt(0, 0.02, 0);
+  H.observerCamera.aspect = vw / vh;
+  H.observerCamera.updateProjectionMatrix();
+  return {
+    idx, dom, renderer, H, bee, rig: new EyeRig(renderer, H, bee, H.goalGroup),
+    viewW: vw, viewH: vh,
+    cfg: null, runIdx: 0, runsTotal: 0, seedBase: 0, active: false,
+    obstacles: [], start: null, goal: null, fly: null, net: null, rule: null,
+    touch: null, pathLen: 0, lastTurn: 0, lastClimb: 0,
+    latestVision: ZERO_VISION(), visionSimLast: -Infinity, simAcc: 0,
+    stepsCount: 0, stepsT0: performance.now(),
+  };
+}
+function setWorld(sl, seed, mazeBuiltin) {
+  clearWorld(sl.H.scene, sl.obstacles);
+  const w = makeWorld(seed, mazeBuiltin);
+  // hazards:'none' drops the red obstacles (pillar/sphere) for ablation runs;
+  // walls stay (maze structure). Post-build filter keeps the seeded wall layout
+  // identical to the with-hazard twin, so A/B pairs stay seed-comparable.
+  sl.obstacles = sl.cfg.hazards === 'none' ? w.obstacles.filter((o) => o.type === 'wall') : w.obstacles;
+  sl.start = w.start; sl.goal = w.goal;
+  for (const o of sl.obstacles) { o.mesh = buildObstacleMesh(o); sl.H.scene.add(o.mesh); }
+  sl.H.goalGroup.position.set(sl.goal.x, .02, sl.goal.z);
+}
+function resetRun(sl) {
+  const seed = sl.seedBase + sl.runIdx;
+  setWorld(sl, seed, shellOf(sl.cfg.maze).builtin || sl.cfg.maze);
+  sl.fly = createFlightState(sl.start, sl.goal);
+  sl.rule = createCameraRuleController();
+  sl.touch = null; sl.pathLen = 0; sl.lastTurn = 0; sl.lastClimb = 0;
+  sl.latestVision = ZERO_VISION(); sl.visionSimLast = -Infinity; sl.simAcc = 0;
+  sl.net = createFlightConnectome(loadedGraph, { mode: sl.cfg.visionMode, neuronRule: sl.cfg.neuronModel });
+  if (pretrained?.gains) { try { sl.net.loadWeights(pretrained.gains); } catch (e) { /* keep init */ } }
+  sl.rig.reset();
+  sl.bee.position.set(sl.start.x, sl.start.y, sl.start.z);
+  sl.bee.rotation.set(0, -sl.fly.yaw, 0, 'YXZ');
+  advanceWorld(sl.obstacles, 0, true);
+  updateBeeVision(sl, true);
+  return seed;
+}
+function updateBeeVision(sl, force = false) {
+  if (!force && sl.fly.elapsed - sl.visionSimLast < CAMERA_PIPELINE.updateIntervalMs / 1000) return false;
+  sl.visionSimLast = sl.fly.elapsed;
+  const { signal } = sl.rig.captureBeeVision({ pos: sl.fly.pos, yaw: sl.fly.yaw, pitch: sl.fly.pitch }, sl.cfg.visionMode, sl.cfg.sensor);
+  sl.latestVision = signal;
+  return true;
+}
+function runStep(sl, dt) {
+  advanceWorld(sl.obstacles, sl.fly.elapsed, true);
+  const brain = senseVision(sl.fly.pos, sl.fly.yaw, sl.fly.pitch, sl.latestVision, { sensitivity: sl.cfg.vision_sensitivity, neuronRule: sl.cfg.neuronModel, eyeMode: sl.cfg.visionMode });
+  brain.dt = dt;
+  brain.touch = sl.touch;
+  brain.stalled = isStalled(sl.fly.odo); // K24: stall-flip feed (validates end-to-end via the stall log field)
+  const decision = (sl.cfg.controller || 'neurons') === 'camera' ? sl.rule.step(brain) : sl.net.step(brain);
+  const ox = sl.fly.pos.x, oy = sl.fly.pos.y, oz = sl.fly.pos.z;
+  const m = movement(sl.fly, decision, dt, sl.obstacles, {
+    speed: sl.cfg.cruise_ms, learning: Q.get('learning') === '1', brain, goal: sl.goal, collisionPenalty: 1.5, timeLimit: sl.cfg.max_time_s,
+  });
+  sl.touch = m.touch ? { side: m.touch.side, mag: m.touch.mag } : decayTouch(sl.touch, dt);
+  sl.pathLen += Math.hypot(sl.fly.pos.x - ox, sl.fly.pos.y - oy, sl.fly.pos.z - oz);
+  sl.lastTurn = m.activeTurn ?? decision.turn ?? 0;
+  sl.lastClimb = m.climb || 0;
+  sl.bee.position.set(sl.fly.pos.x, sl.fly.pos.y, sl.fly.pos.z);
+  sl.bee.rotation.set(sl.fly.pitch, -sl.fly.yaw, 0, 'YXZ');
+  return brain;
+}
+function logRow(sl, seed, brain) {
+  B.flightLog.push({
+    t: r4(sl.fly.elapsed), config_id: sl.cfg.config_id, slot: sl.idx, run: sl.runIdx, seed,
+    vision_sensitivity: sl.cfg.vision_sensitivity,
+    pos: { x: r4(sl.fly.pos.x), y: r4(sl.fly.pos.y), z: r4(sl.fly.pos.z) },
+    yaw: r4(sl.fly.yaw), pitch: r4(sl.fly.pitch),
+    L: r4(brain.leftThreat), F: r4(brain.frontThreat), R: r4(brain.rightThreat),
+    U: r4(brain.upThreat), D: r4(brain.downThreat),
+    upR: r4((brain.gridWall || [])[1]), cR: r4((brain.gridWall || [])[4]), loR: r4((brain.gridWall || [])[7]),
+    upM: r4((brain.grid || [])[1]), loM: r4((brain.grid || [])[7]),
+    esc: brain.escapeDirection ?? 0, stall: brain.stalled ? 1 : 0,
+    turn: r4(sl.lastTurn), climb: r4(sl.lastClimb),
+    reward: r4(sl.fly.reward), collision: sl.fly.collisions,
+  });
+}
+
+// ---------- batch control ----------
+function ensureSlots(n) {
+  const grid = $('slotGrid');
+  grid.classList.toggle('single', n === 1);
+  while (B.slots.length < n) B.slots.push(createSlot(B.slots.length, false));
+  B.slots.forEach((sl, i) => { sl.dom.style.display = i < n ? '' : 'none'; if (i >= n) sl.active = false; });
+}
+function finishRun(sl, reason) {
+  const d = Math.hypot(sl.goal.x - sl.fly.pos.x, sl.goal.y - sl.fly.pos.y, sl.goal.z - sl.fly.pos.z);
+  const elapsed = +sl.fly.elapsed.toFixed(2);
+  const store = B.perConfig[sl.cfg.config_id];
+  store.runs.push({
+    run: store.runs.length, seed: sl.curSeed, slot: sl.idx,
+    success: sl.fly.success, reason,
+    elapsed_s: elapsed, collisions: sl.fly.collisions,
+    path_m: +sl.pathLen.toFixed(3),
+    avg_speed: elapsed > 0 ? +(sl.pathLen / elapsed).toFixed(3) : 0,
+    final_d: +d.toFixed(4), reward: +sl.fly.reward.toFixed(3),
+  });
+  try { store.gains_end = sl.net.exportWeights(); } catch (e) { store.gains_end = null; }
+  renderResults();
+}
+$('startBtn').addEventListener('click', async () => {
+  if (!loadedGraph) { errBox.style.display = 'block'; errBox.textContent = 'graphs not loaded — cannot run neurons.'; return; }
+  if (await freshnessChecked) { errBox.style.display = 'block'; errBox.textContent = 'STALE MODULES — Ctrl+F5 (hard reload) until this clears. ' + STALE_MODULES; return; }
+  const cfgs = selectedCfgs();
+  if (!cfgs.length) return;
+  if (cfgs.some((c) => c.neuronModel === 'alif_surrogate') && !(await ensureAlif())) {
+    errBox.style.display = 'block'; errBox.textContent = 'ALIF plugin failed to load.'; return;
+  }
+  const runsEach = Math.max(1, Math.min(200, +$('runsIn').value || 1));
+  const seedBase = +$('seedIn').value || dateSeed();
+  B.renderOn = $('renderSel').value !== 'off';
+  B.flightLog = []; B.perConfig = {}; B.stopReq = false; B.batchDone = false; tagCache = null;
+  for (const c of cfgs) B.perConfig[c.config_id] = { config: c, runs: [], gains_end: null };
+  const share = cfgs.length === 1; // 1 config → 4 slots split its runs (seed+slot×1000)
+  const nSlots = share ? 4 : cfgs.length;
+  ensureSlots(nSlots);
+  B.slots.forEach((sl, i) => {
+    if (i >= nSlots) { sl.active = false; return; }
+    sl.cfg = share ? cfgs[0] : cfgs[i];
+    sl.runIdx = 0;
+    sl.runsTotal = share ? Math.ceil(runsEach / nSlots) : runsEach;
+    sl.seedBase = seedBase + (share ? i * 1000 : 0);
+    sl.dom.querySelector('.stitle').textContent = `slot ${i} ${sl.cfg.config_id}`;
+    sl.curSeed = resetRun(sl);
+    sl.active = true;
+  });
+  renderResults();
+  B.running = true;
+  $('startBtn').disabled = true; $('stopBtn').disabled = false;
+});
+$('stopBtn').addEventListener('click', () => { B.stopReq = true; });
+
+// ---------- in-page analysis (mirrors python/analyze.py local stats) ----------
+function pearson(xs, ys) {
+  const n = xs.length;
+  if (n < 3 || ys.length !== n) return null;
+  const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+  let cov = 0, vx = 0, vy = 0;
+  for (let i = 0; i < n; i++) { cov += (xs[i] - mx) * (ys[i] - my); vx += (xs[i] - mx) ** 2; vy += (ys[i] - my) ** 2; }
+  return (vx > 0 && vy > 0) ? cov / Math.sqrt(vx * vy) : null;
+}
+function analyzeLocal() {
+  const groups = {};
+  for (const r of B.flightLog) {
+    const k = `${r.config_id}|${r.run}|${r.slot}`;
+    (groups[k] = groups[k] || []).push(r);
+  }
+  const acc = {};
+  for (const k of Object.keys(groups)) {
+    const g = groups[k], cid = g[0].config_id;
+    const d = acc[cid] = acc[cid] || { rows: 0, coll_ev: 0, F: [], T: [], U: [], D: [], C: [] };
+    d.rows += g.length;
+    for (let i = 1; i < g.length; i++) if (g[i].collision > g[i - 1].collision) d.coll_ev++;
+    for (const r of g) { d.F.push(r.F); d.T.push(Math.abs(r.turn)); d.U.push(r.U); d.D.push(r.D); d.C.push(r.climb); }
+  }
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const perConfig = {};
+  for (const cid of Object.keys(acc)) {
+    const d = acc[cid];
+    perConfig[cid] = {
+      rows: d.rows, coll_ev: d.coll_ev,
+      mean_F: +mean(d.F).toFixed(4), mean_abs_turn: +mean(d.T).toFixed(4), mean_climb: +mean(d.C).toFixed(4),
+      corr_F_turn: pearson(d.F, d.T), corr_U_climb: pearson(d.U, d.C), corr_D_climb: pearson(d.D, d.C),
+    };
+  }
+  const failures = [];
+  for (const cid of Object.keys(B.perConfig)) {
+    const mf = perConfig[cid]?.mean_F ?? 0;
+    for (const r of B.perConfig[cid].runs) {
+      if (r.success) continue;
+      const cls = r.reason === 'stopped' ? 'stopped_by_user'
+        : (r.collisions >= 5 ? 'collision_loop' : (mf >= 0.7 ? 'frontal_block_timeout' : 'timeout_other'));
+      failures.push({ config: cid, run: r.run, class: cls });
+    }
+  }
+  return { perConfig, failures };
+}
+function renderAnalysis() {
+  const { perConfig, failures } = analyzeLocal();
+  const ids = Object.keys(perConfig);
+  const f2 = (v) => (v === null || v === undefined) ? '—' : (+v).toFixed(2);
+  if (!ids.length) { $('analysisOut').innerHTML = 'no log rows yet'; return; }
+  let html = '<table><thead><tr><th>config</th><th>rows</th><th>coll_ev</th><th>mean F</th><th>|turn|</th><th>climb</th><th>F-turn</th><th>U-climb</th><th>D-climb</th></tr></thead><tbody>';
+  for (const id of ids) {
+    const d = perConfig[id];
+    html += `<tr><td>${id}</td><td>${d.rows}</td><td>${d.coll_ev}</td><td>${d.mean_F.toFixed(2)}</td><td>${d.mean_abs_turn.toFixed(3)}</td><td>${d.mean_climb.toFixed(3)}</td><td>${f2(d.corr_F_turn)}</td><td>${f2(d.corr_U_climb)}</td><td>${f2(d.corr_D_climb)}</td></tr>`;
+  }
+  html += '</tbody></table>';
+  if (failures.length) html += `<div class="note" style="margin-top:6px">failures: ${failures.map((x) => `${x.config}#${x.run}=${x.class}`).join(', ')}</div>`;
+  $('analysisOut').innerHTML = html;
+}
+$('analyzeBtn').addEventListener('click', renderAnalysis);
+
+// ---------- results / charts / export ----------
+function summarizeRuns(runs) {
+  const ok = runs.filter((r) => r.success);
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const best = [...runs].sort((a, b) =>
+    (b.success - a.success) || (a.elapsed_s - b.elapsed_s) || (a.collisions - b.collisions))[0] || null;
+  return {
+    n: runs.length, rate: runs.length ? ok.length / runs.length : 0,
+    meanT: +mean(runs.map((r) => r.elapsed_s)).toFixed(2),
+    meanC: +mean(runs.map((r) => r.collisions)).toFixed(2),
+    best: best ? best.run : null,
+  };
+}
+function bestConfigId() {
+  const ids = Object.keys(B.perConfig).filter((id) => B.perConfig[id].runs.length);
+  ids.sort((a, b) => {
+    const sa = summarizeRuns(B.perConfig[a].runs), sb = summarizeRuns(B.perConfig[b].runs);
+    return (sb.rate - sa.rate) || (sa.meanT - sb.meanT) || (sa.meanC - sb.meanC);
+  });
+  return ids[0] || null;
+}
+let charts = null;
+const RUN_COLORS = ['#38bdf8', '#a78bfa', '#fbbf24', '#34d399', '#fb7185', '#94a3b8', '#f97316', '#22d3ee'];
+function renderCharts() {
+  const ids = Object.keys(B.perConfig).filter((id) => B.perConfig[id].runs.length);
+  if (!window.Chart) { $('chartNote').textContent = 'Chart.js failed to load (offline?) — tables still work.'; return; }
+  if (!ids.length) { $('chartNote').textContent = 'waiting for runs…'; return; }
+  const maxRuns = Math.max(...ids.map((id) => B.perConfig[id].runs.length));
+  const perRun = maxRuns <= RUN_COLORS.length;
+  $('chartNote').textContent = perRun
+    ? `${ids.length} config(s) x up to ${maxRuns} run(s) — grouped per run`
+    : `${ids.length} config(s), ${maxRuns} runs — too many for per-run bars, showing means.`;
+  const runVal = (r, k) => (k === 's' ? (r.success ? 100 : 0) : (k === 'c' ? +r.collisions : +r.elapsed_s));
+  const mkDs = (k) => (perRun
+    ? Array.from({ length: maxRuns }, (_, r) => ({
+      label: `run ${r}`,
+      data: ids.map((id) => { const rr = B.perConfig[id].runs[r]; return rr ? runVal(rr, k) : null; }),
+      backgroundColor: k === 's'
+        ? ids.map((id) => { const rr = B.perConfig[id].runs[r]; return !rr ? '#334155' : rr.success ? '#2fe36b' : '#f0586a'; })
+        : RUN_COLORS[r % RUN_COLORS.length],
+    }))
+    : [{ label: 'mean', data: ids.map((id) => { const s = summarizeRuns(B.perConfig[id].runs); return k === 's' ? +(s.rate * 100).toFixed(1) : +(k === 'c' ? s.meanC : s.meanT); }), backgroundColor: k === 's' ? '#2fe36b' : k === 'c' ? '#f0586a' : '#38bdf8' }]);
+  const cfgs = [
+    { el: 'chSuccess', title: 'success % (per run: green=yes red=no)', ds: mkDs('s') },
+    { el: 'chColl', title: 'collisions (per run)', ds: mkDs('c') },
+    { el: 'chTime', title: 'time s (per run)', ds: mkDs('t') },
+  ];
+  const opts = (title) => ({
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      title: { display: true, text: title, color: '#b9cdf3', font: { size: 11 } },
+      legend: { display: perRun, labels: { color: '#8fa6c2', boxWidth: 10, font: { size: 10 } } },
+    },
+    scales: { x: { ticks: { color: '#8fa6c2' } }, y: { ticks: { color: '#8fa6c2' } } },
+  });
+  if (!charts) {
+    charts = cfgs.map((c) => new Chart($(c.el), { type: 'bar', data: { labels: ids, datasets: c.ds }, options: opts(c.title) }));
+  } else {
+    charts.forEach((ch, i) => { ch.data.labels = ids; ch.data.datasets = cfgs[i].ds; ch.options.plugins.legend.display = perRun; ch.update(); });
+  }
+}
+function renderResults() {
+  const best = bestConfigId();
+  const ids = Object.keys(B.perConfig);
+  $('bestLine').textContent = best
+    ? `best config: ${best} (${B.perConfig[best].config.label})`
+    : (ids.length ? 'running…' : 'no runs yet');
+  const st = document.querySelector('#sumTable tbody');
+  st.innerHTML = '';
+  for (const id of ids) {
+    const s = summarizeRuns(B.perConfig[id].runs);
+    const tr = document.createElement('tr');
+    if (id === best) tr.className = 'best';
+    tr.innerHTML = `<td>${id}</td><td>${s.n}</td><td>${(s.rate * 100).toFixed(1)}%</td><td>${s.meanT}</td><td>${s.meanC}</td><td>${s.best ?? '—'}</td>`;
+    st.appendChild(tr);
+  }
+  const tb = document.querySelector('#resTable tbody');
+  tb.innerHTML = '';
+  for (const id of ids) {
+    const s = summarizeRuns(B.perConfig[id].runs);
+    for (const r of B.perConfig[id].runs) {
+      const tr = document.createElement('tr');
+      tr.className = ((id === best && s.best === r.run) ? 'best ' : '') + (r.success ? 'ok' : 'fail');
+      tr.innerHTML = `<td>${id}#${r.slot}</td><td>${r.run}</td><td>${r.success ? 'yes' : 'no'}</td><td>${r.elapsed_s}</td><td>${r.collisions}</td><td>${r.path_m}</td><td>${r.avg_speed}</td>`;
+      tb.appendChild(tr);
+    }
+  }
+  renderCharts();
+}
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+let tagCache = null; // one stamp per batch: all 3 exports share it
+const batchStamp = () => { const d = new Date(); const p = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`; };
+const batchTag = () => tagCache || (tagCache = `${batchStamp()}_${Object.keys(B.perConfig).join('+') || 'empty'}`);
+$('expLog').addEventListener('click', () => download(`flight_log_${batchTag()}.jsonl`, B.flightLog.map((r) => JSON.stringify(r)).join('\n'), 'application/x-ndjson'));
+$('expJson').addEventListener('click', () => download(`results_${batchTag()}.json`, JSON.stringify({
+  schema: 'nsp3d-experiment-results/1.2', created_at: new Date().toISOString(), version: NSP3D_VERSION, build: BUILD, decoder_build: DECODER_BUILD, controller_build: CONTROLLER_BUILD, snn_build: SNN_BUILD,
+  configs: B.perConfig, best_config: bestConfigId(),
+}, null, 1)));
+$('expCsv').addEventListener('click', () => {
+  const head = 'config_id,run,seed,slot,success,reason,elapsed_s,collisions,path_m,avg_speed,final_d,reward';
+  const lines = [head];
+  for (const id of Object.keys(B.perConfig)) for (const r of B.perConfig[id].runs) {
+    lines.push([id, r.run, r.seed, r.slot, r.success, r.reason, r.elapsed_s, r.collisions, r.path_m, r.avg_speed, r.final_d, r.reward].join(','));
+  }
+  download(`results_${batchTag()}.csv`, lines.join('\n'), 'text/csv');
+});
+
+// ---------- usage note (gate lives in analyze.py) ----------
+$('tokLimit').value = localStorage.getItem('nsp_tok_limit') || '5000000';
+$('tokLimit').addEventListener('change', (e) => localStorage.setItem('nsp_tok_limit', e.target.value));
+$('copyAnalyze').addEventListener('click', () => {
+  const cmd = `python python/analyze.py <flight_log.jsonl> --llm --token-limit ${$('tokLimit').value}`;
+  if (navigator.clipboard) navigator.clipboard.writeText(cmd);
+});
+
+// ---------- main loop ----------
+let lastTs = 0, fpsN = 0, fpsT0 = 0;
+function slotStat(sl) {
+  const v = sl.latestVision || ZERO_VISION();
+  return `run ${sl.runIdx + 1}/${sl.runsTotal} t=${sl.fly.elapsed.toFixed(1)}s ` +
+    `pos=(${sl.fly.pos.x.toFixed(2)},${sl.fly.pos.y.toFixed(3)},${sl.fly.pos.z.toFixed(2)})\n` +
+    `L=${v.leftThreat.toFixed(2)} F=${v.frontThreat.toFixed(2)} R=${v.rightThreat.toFixed(2)} ` +
+    `U=${v.upThreat.toFixed(2)} D=${v.downThreat.toFixed(2)} coll=${sl.fly.collisions}`;
+}
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const frameDt = (ts - lastTs) / 1000 || 0.016;
+  lastTs = ts;
+  fpsN++;
+  if (ts - fpsT0 > 500) { $('fps').textContent = Math.round(fpsN * 1000 / (ts - fpsT0)); fpsN = 0; fpsT0 = ts; }
+  if (!B.running) return;
+  for (const sl of B.slots) {
+    if (!sl.active) continue;
+    const tick = consumeSteps(sl.simAcc, frameDt);
+    sl.simAcc = tick.acc;
+    sl.stepsCount += tick.steps;
+    for (let i = 0; i < tick.steps && !sl.fly.done; i++) {
+      const brain = runStep(sl, SIM_STEP_H);
+      if (updateBeeVision(sl)) logRow(sl, sl.curSeed, brain);
+      if (B.stopReq) break;
+    }
+    const now = performance.now();
+    if (now - sl.stepsT0 > 500) {
+      sl.dom.querySelector('.ssteps').textContent = `${Math.round(sl.stepsCount * 1000 / (now - sl.stepsT0))} steps/s`;
+      sl.stepsCount = 0; sl.stepsT0 = now;
+    }
+    sl.dom.querySelector('.sstat').textContent = slotStat(sl);
+    if (B.stopReq || sl.fly.done) {
+      finishRun(sl, B.stopReq ? 'stopped' : (sl.fly.success ? 'goal' : 'timeout'));
+      sl.runIdx++;
+      if (B.stopReq || sl.runIdx >= sl.runsTotal) {
+        sl.active = false;
+        sl.dom.querySelector('.sstat').textContent += '\nslot done.';
+      } else {
+        sl.curSeed = resetRun(sl);
+      }
+    }
+    if (B.renderOn) {
+      // EyeRig restores the viewport to window size after captures; put it back.
+      sl.renderer.setViewport(0, 0, sl.viewW, sl.viewH);
+      sl.renderer.render(sl.H.scene, sl.H.observerCamera);
+    }
+  }
+  if (B.stopReq || !B.slots.some((s) => s.active)) {
+    B.running = false; B.stopReq = false; B.batchDone = true;
+    $('startBtn').disabled = false; $('stopBtn').disabled = true;
+    renderAnalysis();
+  }
+}
+
+window.__expDbg = {
+  build: BUILD, decoderBuild: DECODER_BUILD, controllerBuild: CONTROLLER_BUILD, snnBuild: SNN_BUILD,
+  get status() { return B.running ? `running ${B.slots.filter((s) => s.active).length} slot(s)` : 'idle'; },
+  get batchDone() { return B.batchDone; },
+  get results() { return B.perConfig; },
+  get logRows() { return B.flightLog.length; },
+  get flightLog() { return B.flightLog; },
+};
+renderResults();
+requestAnimationFrame(loop);
+if (Q.get('autostart') === '1') $('startBtn').click();
+</script>
+</body>
+</html>

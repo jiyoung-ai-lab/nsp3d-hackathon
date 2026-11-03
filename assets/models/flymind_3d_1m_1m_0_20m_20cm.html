@@ -1,0 +1,3433 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FlyMind 3D 시뮬레이터 (1m×1m×0.20m · 높이 20cm · 5대 복합미로 &amp; 랜덤 기둥/풍선 장애물)</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #060914; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; cursor: grab; }
+    #canvas-container:active { cursor: grabbing; }
+    .glass-panel {
+      background: rgba(10, 16, 32, 0.92);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(56, 189, 248, 0.28);
+      box-shadow: 0 14px 35px -5px rgba(0, 0, 0, 0.75);
+    }
+    .custom-scroll::-webkit-scrollbar { width: 5px; }
+    .custom-scroll::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #38bdf8; border-radius: 3px; }
+    .badge-pulse { animation: pulseGlow 1.8s infinite; }
+    @keyframes pulseGlow {
+      0%, 100% { opacity: 1; filter: drop-shadow(0 0 6px rgba(56, 189, 248, 0.6)); }
+      50% { opacity: 0.82; filter: drop-shadow(0 0 2px rgba(56, 189, 248, 0.2)); }
+    }
+    .badge-bump { animation: bumpFlash 0.3s infinite alternate; }
+    @keyframes bumpFlash {
+      0% { filter: drop-shadow(0 0 8px rgba(239, 68, 68, 0.9)); }
+      100% { filter: drop-shadow(0 0 2px rgba(239, 68, 68, 0.3)); }
+    }
+    input[type="range"] { accent-color: #f59e0b; }
+  </style>
+</head>
+<body class="text-slate-100 select-none">
+  <!-- 3D Canvas -->
+  <div id="canvas-container"></div>
+
+  <!-- Header -->
+  <header class="absolute top-3 left-3 z-10 pointer-events-auto">
+    <div class="glass-panel px-4 py-2.5 rounded-xl flex items-center gap-3 border-l-4 border-l-amber-400">
+      <div class="w-10 h-10 rounded-lg bg-amber-950/80 border border-amber-500/40 flex items-center justify-center text-amber-400 font-bold text-xl shadow-inner">
+        🐝
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <h1 class="text-sm font-bold text-slate-100 tracking-wide">FlyMind 3D 바이오 AI 시뮬레이터</h1>
+          <span class="text-[10px] bg-amber-900/60 text-amber-300 px-2 py-0.5 rounded-full border border-amber-500/30 font-semibold">높이 20cm · 5대 복합미로 · 랜덤 장애물</span>
+          <span id="fps-counter" class="text-[10px] bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded-full border border-emerald-500/40 font-mono font-bold">60 FPS</span>
+        </div>
+        <p class="text-[11px] text-slate-300">1m × 1m × 0.20m 챔버 · <strong>신경망 회로 실시간 활성화 · 3대 추론 엔진 벤치마크 (학습 전후 비교)</strong></p>
+      </div>
+    </div>
+  </header>
+
+  <!-- Camera View Switcher & Custom Panel Toggle (Center-Top) -->
+  <div class="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-auto flex items-center gap-2">
+    <div class="glass-panel p-1.5 rounded-2xl flex items-center gap-1.5 border border-cyan-500/30 bg-slate-950/90 shadow-2xl">
+      <button id="cam-drone-btn" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-cyan-600 text-white shadow-lg shadow-cyan-900/50" title="확대뷰 (스마트드론뷰): 꿀벌 이동 추종 및 휠 줌인 시 꿀벌 얼굴/눈 코앞까지 초근접 확대 가능 (단축키 1)">
+        <span class="text-sm">🔍</span>
+        <span>확대뷰 · 스마트드론 (얼굴 초근접 지원)</span>
+      </button>
+      <button id="btn-face-closeup" class="px-2.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500 hover:text-slate-950" title="꿀벌 얼굴 코앞(2.5cm)까지 즉시 줌인 클로즈업 (단축키 F)">
+        <span>🐝</span>
+        <span>얼굴 클로즈업</span>
+      </button>
+      <span class="text-slate-600 text-xs font-bold">▸</span>
+      <button id="cam-tpv-btn" class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700" title="축소뷰 (3인칭 전체뷰): 1m×1m 미로 전체를 한눈에 내려다보는 360도 자유 조망 (단축키 2)">
+        <span class="text-sm">🌐</span>
+        <span>축소뷰 · 3인칭 전체조망</span>
+      </button>
+    </div>
+
+        <!-- Toggle FlyMind Neural Panel Button -->
+    <button id="btn-toggle-flymind-panel" class="glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-cyan-600 text-white border border-cyan-400/50 shadow-lg shadow-cyan-950/40">
+      <span>🧠</span>
+      <span id="flymind-panel-btn-text">FlyMind 신경망 패널</span>
+    </button>
+
+    <!-- Toggle Bee Custom Panel Button -->
+    <button id="btn-toggle-custom-panel" class="glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 shadow-lg shadow-amber-950/40">
+      <span>🎨</span>
+      <span id="custom-panel-btn-text">꿀벌 커스텀 패널 열기</span>
+    </button>
+  </div>
+
+  <!-- Zoom & Angle Controls (Left Toolbar) -->
+  <div id="zoom-controls-panel" class="absolute top-18 left-3 z-10 pointer-events-auto flex flex-col gap-1.5">
+    <div class="glass-panel p-1 rounded-xl flex flex-col gap-1 border border-cyan-500/20">
+      <button id="btn-zoom-in" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-slate-200 hover:text-white transition flex items-center justify-center font-bold text-base shadow" title="확대 / 가까이 (Zoom In, +)">
+        ➕
+      </button>
+      <button id="btn-zoom-out" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-cyan-600 text-slate-200 hover:text-white transition flex items-center justify-center font-bold text-base shadow" title="축소 / 멀리 (Zoom Out, -)">
+        ➖
+      </button>
+      <button id="btn-zoom-reset" class="w-8 h-8 rounded-lg bg-slate-800 hover:bg-amber-600 text-slate-200 hover:text-white transition flex items-center justify-center text-xs shadow font-bold" title="각도/거리 리셋 (R)">
+        🎯
+      </button>
+    </div>
+  </div>
+
+    <!-- FlyMind Neural Circuit & Inference Benchmark Dashboard (Top-Right) -->
+  <div id="telemetry-panel" class="absolute top-18 right-3 bottom-18 z-20 w-88 md:w-96 max-w-[calc(100vw-24px)] glass-panel rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-cyan-500/40 pointer-events-auto">
+    <!-- Header -->
+    <div class="px-3.5 py-2.5 border-b border-slate-800 flex items-center justify-between bg-cyan-950/30">
+      <div class="flex items-center gap-2">
+        <span class="text-base">🧠</span>
+        <div>
+          <h2 class="text-xs font-bold text-slate-100 flex items-center gap-1.5">FlyMind 생체 신경망 &amp; AI 추론 엔진</h2>
+          <p class="text-[10px] text-slate-400">학습공간(RL) 분리 · 사전학습 가중치 벤치마크</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <span id="state-badge" class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-500/40 badge-pulse">
+          CRUISE
+        </span>
+        <button id="btn-close-flymind-panel" class="text-slate-400 hover:text-white text-xs px-1.5 py-0.5 rounded hover:bg-slate-800 transition">✕</button>
+      </div>
+    </div>
+
+    <!-- Scrollable Body -->
+    <div class="p-3 space-y-2.5 overflow-y-auto custom-scroll flex-1 text-xs">
+      <!-- 1. AI Inference Engine Selector -->
+      <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-bold text-slate-200">AI 실험 엔진 (학습 전후 비교)</span>
+          <span id="engine-tag" class="text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-950 text-amber-300 border border-amber-500/30">
+            생체 반사 엔진
+          </span>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-1 text-[11px]">
+          <button id="btn-engine-untrained" class="btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700" title="학습 전 상태: 무작위 탐색 및 늦은 회피로 충돌 빈발">
+            <span>🌱 미학습</span>
+            <span class="text-[9px] text-slate-400 font-normal">학습 전 탐색</span>
+          </button>
+          <button id="btn-engine-bio" class="btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-cyan-600 text-white shadow-lg shadow-cyan-900/50 border border-cyan-400" title="생체 반사 규칙: 광학류 비대칭 억제로 즉시 반사 회피">
+            <span>⚡ 생체반사</span>
+            <span class="text-[9px] text-cyan-200 font-normal">광학류 회피</span>
+          </button>
+          <button id="btn-engine-rl" class="btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700" title="사전학습 완료: 18cm 전 선제적 도약, 최단 슬라롬 주행 (충돌 0회)">
+            <span>🏆 RL 완료</span>
+            <span class="text-[9px] text-slate-400 font-normal">학습 후 100k</span>
+          </button>
+        </div>
+
+        <div id="engine-desc-card" class="p-2 rounded-lg bg-slate-950/70 border border-slate-800/80 text-[11px] text-slate-300 leading-snug">
+          💡 <strong class="text-amber-300">생체 반사 규칙 엔진</strong>: 곤충 시각의 좌우 광학류 비대칭 억제로 장애물을 반사 회피하고, 도약턱 감지 시 직관적으로 상승합니다.
+        </div>
+      </div>
+
+      <!-- 2. Pre/Post Comparison Scorecard -->
+      <div class="grid grid-cols-4 gap-1.5 text-center text-xs">
+        <div class="bg-slate-900/80 p-1.5 rounded-lg border border-slate-800">
+          <span class="text-[10px] text-slate-400 block mb-0.5">충돌 횟수</span>
+          <span id="metric-bumps" class="font-mono font-bold text-emerald-400 text-xs">0 회</span>
+        </div>
+        <div class="bg-slate-900/80 p-1.5 rounded-lg border border-slate-800">
+          <span class="text-[10px] text-slate-400 block mb-0.5">평균 속도</span>
+          <span id="metric-speed" class="font-mono font-bold text-cyan-300 text-xs">12.0 cm/s</span>
+        </div>
+        <div class="bg-slate-900/80 p-1.5 rounded-lg border border-slate-800">
+          <span class="text-[10px] text-slate-400 block mb-0.5">주행 효율</span>
+          <span id="metric-rank" class="font-bold text-amber-300 text-xs">A+ Rank</span>
+        </div>
+        <div class="bg-slate-900/80 p-1.5 rounded-lg border border-slate-800">
+          <span class="text-[10px] text-slate-400 block mb-0.5">회피율</span>
+          <span id="metric-success" class="font-mono font-bold text-emerald-300 text-xs">99.4%</span>
+        </div>
+      </div>
+
+      <!-- 3. Neural Circuit Real-Time Multi-Pathway Visualizer -->
+      <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-200 flex items-center gap-1">
+            <span>🧬</span> <span>생체 신경망 다중경로 활성화 (시선➔출구➔기관)</span>
+          </span>
+          <span id="neural-firing-rate" class="font-mono font-bold text-cyan-400 text-[10px]">다중 발화: 74%</span>
+        </div>
+
+        <!-- 3-Stage Column Headers -->
+        <div class="grid grid-cols-3 text-[10px] font-bold text-center bg-slate-950/80 py-1 rounded-md border border-slate-800/80">
+          <span class="text-sky-300">1) 좌·우·상하 시선</span>
+          <span class="text-emerald-300">2) 시선방향 출구확인</span>
+          <span class="text-amber-300">3) 다리(좌우)·날개(상하)</span>
+        </div>
+        
+        <!-- Canvas for Multi-Pathway Neural Circuit -->
+        <canvas id="neural-canvas" width="340" height="148" class="w-full bg-slate-950/95 rounded-lg border border-cyan-500/25 shadow-inner block"></canvas>
+
+        <!-- Real-Time Organ Response Readout (Legs vs Wings Concurrent Status) -->
+        <div class="grid grid-cols-2 gap-1.5 text-[10px]">
+          <div class="bg-slate-950/90 p-1.5 rounded-lg border border-amber-500/30 flex flex-col gap-0.5">
+            <div class="flex items-center justify-between">
+              <span class="text-amber-300 font-bold">🦵 다리 신경 (좌·우 이동)</span>
+              <span id="leg-act-pct" class="font-mono font-bold text-amber-400">42%</span>
+            </div>
+            <span id="leg-act-desc" class="text-slate-300 truncate">정면 출구 조준 · 직진 보행</span>
+          </div>
+          <div class="bg-slate-950/90 p-1.5 rounded-lg border border-cyan-500/30 flex flex-col gap-0.5">
+            <div class="flex items-center justify-between">
+              <span class="text-cyan-300 font-bold">🪽 날개 신경 (위·아래 이동)</span>
+              <span id="wing-act-pct" class="font-mono font-bold text-cyan-400">35%</span>
+            </div>
+            <span id="wing-act-desc" class="text-slate-300 truncate">저공 2cm 순항 양력 유지</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4. Real-Time Stream Waveform Graph -->
+      <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
+        <div class="flex items-center justify-between text-xs">
+          <span class="font-bold text-slate-200 flex items-center gap-1">
+            <span>📈</span> <span>부위별 신경 자극·반응 실시간 그래프</span>
+          </span>
+          <div class="flex items-center gap-2 text-[10px]">
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-cyan-400 inline-block"></span>🪽날개(상하)</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>🦵다리(좌우)</span>
+            <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>👀시선자극</span>
+          </div>
+        </div>
+
+        <!-- Canvas for Real-Time Waveform -->
+        <canvas id="graph-canvas" width="340" height="70" class="w-full bg-slate-950/90 rounded-lg border border-slate-700/60 shadow-inner block"></canvas>
+      </div>
+
+      <!-- 5. Altitude Gauge (0 ~ 20 cm) -->
+      <div class="bg-slate-900/90 p-2.5 rounded-xl border border-slate-700/60">
+        <div class="flex justify-between items-center text-xs mb-1">
+          <span class="text-slate-400 font-medium">비행 고도 (20cm 챔버):</span>
+          <span id="altitude-val" class="font-mono font-bold text-cyan-300">2.0 cm (저공 순항)</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden relative border border-slate-700">
+          <div class="absolute left-[25%] top-0 bottom-0 w-0.5 bg-amber-400 z-10" title="5cm 기준선"></div>
+          <div class="absolute left-[50%] top-0 bottom-0 w-0.5 bg-amber-400 z-10" title="10cm 기준선"></div>
+          <div class="absolute left-[75%] top-0 bottom-0 w-0.5 bg-amber-400 z-10" title="15cm 기준선"></div>
+          <div id="altitude-bar" class="h-full bg-gradient-to-r from-cyan-500 via-sky-400 to-amber-400 w-[10%] transition-all duration-75"></div>
+        </div>
+        <div class="flex justify-between text-[10px] text-slate-400 mt-1">
+          <span>0cm</span>
+          <span class="text-amber-400 font-semibold">▲5cm</span>
+          <span class="text-amber-400 font-semibold">▲10cm</span>
+          <span class="text-amber-400 font-semibold">▲15cm</span>
+          <span>20cm</span>
+        </div>
+      </div>
+
+      <!-- 6. Radar Proximity Telemetry -->
+      <div class="bg-slate-900/90 p-2 rounded-xl border border-slate-800">
+        <div class="text-[11px] font-semibold text-slate-300 mb-1 flex justify-between">
+          <span>12cm 감지 센서</span>
+          <span id="threat-summary" class="text-[10px] text-emerald-400 font-medium">전방 통로 확보</span>
+        </div>
+        <div class="grid grid-cols-3 gap-1 text-center text-[10px]">
+          <div class="bg-slate-950/80 p-1 rounded border border-slate-800">
+            <span class="text-slate-400 block mb-0.5">좌측 여유</span>
+            <span id="dist-left" class="font-mono font-bold text-sky-400">-- cm</span>
+          </div>
+          <div class="bg-slate-950/80 p-1 rounded border border-slate-800">
+            <span class="text-slate-400 block mb-0.5">전방 거리</span>
+            <span id="dist-front" class="font-mono font-bold text-emerald-400">-- cm</span>
+          </div>
+          <div class="bg-slate-950/80 p-1 rounded border border-slate-800">
+            <span class="text-slate-400 block mb-0.5">우측 여유</span>
+            <span id="dist-right" class="font-mono font-bold text-sky-400">-- cm</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Collapsible Bee Customization Side Panel (Right) -->
+  <aside id="bee-custom-panel" class="hidden absolute top-18 right-3 bottom-18 z-20 w-84 max-w-[calc(100vw-24px)] glass-panel rounded-2xl flex flex-col overflow-hidden shadow-2xl border border-amber-500/30 pointer-events-auto">
+    <div class="px-4 py-3 border-b border-slate-800 flex items-center justify-between bg-amber-950/30">
+      <div class="flex items-center gap-2">
+        <span class="text-base">🎨</span>
+        <h2 class="text-xs font-bold text-amber-200">꿀벌 캐릭터 실시간 커스텀</h2>
+      </div>
+      <button id="btn-close-custom-panel" class="text-slate-400 hover:text-white text-xs px-2 py-1 rounded-lg hover:bg-slate-800 transition">✕ 닫기</button>
+    </div>
+
+    <div class="p-3.5 space-y-3 overflow-y-auto custom-scroll flex-1 text-xs">
+      <!-- 1. Reference Image Comparison Card -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-amber-300 text-[11px]">업로드 원본 레퍼런스 (bee_origin.jpg)</span>
+          <button id="btn-toggle-ref-img" class="text-[10px] text-cyan-400 hover:underline">이미지 접기</button>
+        </div>
+        <div id="ref-img-container" class="space-y-1">
+          <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAFoAScDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwD6pooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiuS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IyecHPPpWpoWmtp0EvnTCa6nfzJpAu1c4AAUdgAAK9rGTy54GKoL95p3v53PIwkMesZJ1n7mva3lY0q3vg3ezx/EzXbADNtNpUFwxz911ldRx7hj+VYNdF8ELb7V458VamuTFbW9tp4bsXy8rj8AyfnRw1FvG3XRMXELSwln3R7VRRRX6CfDBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFAHg/xO0r/AIRbxc2o4CaLrkuS5+7BeYwQfQSAZB/vA+orLr3vxDomn+IdIuNM1e3S4s512ujfzHoa8d1L4XeJtCJHhu+t9a05fuWuoOYriMf3VlAIcf7wB96+SznI6mIquvh1q90fUZTnMKFNUa70WzMaimNp/i6N/Lk8Eax5nT5Jrdk/768ytPTfA3jjWWUTW1h4dtj96W4lF1OB/sxp8mfq34V4VPIsdUly8lvVo9mpnWDhG/Pf0MO/u3ieG1soXu9Tum8u0tI/vyv/AEUdSx4Ar2/4a+FR4Q8KwafJIs99I7XN7OBxLO5y5HsOAPYCo/A/gLSPCIkntvOvNVnXbPqF2weaQf3Qeir/ALKgCutr7PKcqjl8HreT3f6I+SzPM5Y6a0tFbL/MKKKK9c8sKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigApqyBpXQBsqASSpAOfQ9D0p1FABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQB//2Q==" alt="원형 꿀벌 레퍼런스" class="w-full h-auto max-h-36 object-contain rounded-lg border border-slate-700/60 bg-white/5" />
+          <p class="text-[10px] text-slate-400 leading-tight">* 통통한 둥근 몸통, 굵은 주황 스트라이프, 커다란 유광 블랙 보바 눈, 하늘색 하트 날개</p>
+        </div>
+      </div>
+
+      <!-- 2. Wing Scale -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+        <div class="flex justify-between items-center">
+          <span class="font-semibold text-slate-200">날개 사이즈 조절 (Wing Scale)</span>
+          <span id="label-wing-scale" class="font-mono font-bold text-amber-300">100%</span>
+        </div>
+        <input id="slider-wing-scale" type="range" min="50" max="200" value="100" class="w-full h-1.5 bg-slate-800 rounded cursor-pointer" />
+        <div class="grid grid-cols-4 gap-1 text-[10px]">
+          <button data-scale="83" class="btn-wing-preset px-1.5 py-1 rounded bg-slate-800 hover:bg-amber-600 text-slate-300 transition">83% 원본</button>
+          <button data-scale="100" class="btn-wing-preset px-1.5 py-1 rounded bg-amber-600 text-white font-bold transition">100% 기본</button>
+          <button data-scale="125" class="btn-wing-preset px-1.5 py-1 rounded bg-slate-800 hover:bg-amber-600 text-slate-300 transition">125% 대형</button>
+          <button data-scale="150" class="btn-wing-preset px-1.5 py-1 rounded bg-slate-800 hover:bg-amber-600 text-slate-300 transition">150% 특대</button>
+        </div>
+      </div>
+
+      <!-- 3. Stripe Color Depth & Richness -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+        <div class="flex justify-between items-center">
+          <span class="font-semibold text-slate-200">몸통 스트라이프 색상 농도</span>
+          <span id="label-color-depth" class="font-mono font-bold text-amber-300">1.15x</span>
+        </div>
+        <input id="slider-color-depth" type="range" min="80" max="160" value="115" class="w-full h-1.5 bg-slate-800 rounded cursor-pointer" />
+        <div class="grid grid-cols-3 gap-1 text-[10px]">
+          <button id="btn-tone-original" class="px-1.5 py-1 rounded bg-slate-800 hover:bg-amber-600 text-slate-300 transition">오리지널</button>
+          <button id="btn-tone-rich" class="px-1.5 py-1 rounded bg-amber-600 text-white font-bold transition">선명한 호박</button>
+          <button id="btn-tone-bright" class="px-1.5 py-1 rounded bg-slate-800 hover:bg-amber-600 text-slate-300 transition">골든 옐로우</button>
+        </div>
+      </div>
+
+      <!-- 4. Wing Opacity & Color -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+        <div class="flex justify-between items-center">
+          <span class="font-semibold text-slate-200">하늘색 날개 투명도 (Opacity)</span>
+          <span id="label-wing-opacity" class="font-mono font-bold text-cyan-300">92%</span>
+        </div>
+        <input id="slider-wing-opacity" type="range" min="40" max="100" value="92" class="w-full h-1.5 bg-slate-800 rounded cursor-pointer" />
+      </div>
+
+      <!-- 5. Wing Flap Speed & Pose (50% reduction: 18Hz at 1.0x) -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5">
+        <div class="flex justify-between items-center">
+          <span class="font-semibold text-slate-200">날갯짓 속도 / 포즈 (50% 감속)</span>
+          <span id="label-flap-speed" class="font-mono font-bold text-amber-300">18.0 Hz (1.0x)</span>
+        </div>
+        <input id="slider-flap-speed" type="range" min="40" max="200" value="100" class="w-full h-1.5 bg-slate-800 rounded cursor-pointer" />
+        <div class="flex justify-between text-[10px] text-slate-400">
+          <span>느리게 (7.2 Hz)</span>
+          <span class="text-amber-400 font-semibold">기본 (18.0 Hz)</span>
+          <span>빠르게 (36.0 Hz)</span>
+        </div>
+        <div class="grid grid-cols-2 gap-1 text-[10px] pt-1">
+          <button id="btn-pose-idle" class="btn-pose px-2 py-1 rounded bg-amber-600 text-white font-bold transition">자동 플러터</button>
+          <button id="btn-pose-up" class="btn-pose px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Wing Up (+45°)</button>
+          <button id="btn-pose-flat" class="btn-pose px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Wing Flat (0°)</button>
+          <button id="btn-pose-down" class="btn-pose px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition">Wing Down (-35°)</button>
+        </div>
+      </div>
+
+      <!-- 6. Eye Style & Sub-Wings -->
+      <div class="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-semibold text-slate-200">아래쪽 작은 하트 날개 표시</span>
+          <input id="chk-sub-wings" type="checkbox" checked class="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0">
+        </div>
+        <div class="flex items-center justify-between pt-1 border-t border-slate-800">
+          <span class="font-semibold text-slate-200">눈 상태 (3D 유광 vs 무광 블랙)</span>
+          <button id="btn-toggle-eye-style" class="px-2 py-1 rounded text-[10px] font-bold bg-cyan-600 text-white">유광 캐치라이트</button>
+        </div>
+      </div>
+
+      <!-- Reset Customization -->
+      <button id="btn-reset-custom" class="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold transition border border-slate-700">
+        ↺ 커스터마이징 초기화 (기본값)
+      </button>
+    </div>
+  </aside>
+
+  <!-- Bottom Control Bar -->
+  <div class="absolute bottom-4 left-3 right-3 md:left-6 md:right-auto z-10 pointer-events-auto">
+    <div class="glass-panel p-2.5 rounded-xl flex flex-wrap items-center gap-3 max-w-3xl">
+      <!-- Playback Controls -->
+      <div class="flex items-center gap-1.5 border-r border-slate-700/60 pr-3">
+        <button id="play-pause-btn" class="px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-cyan-900/40 flex items-center gap-1.5">
+          <span id="play-icon">⏸</span>
+          <span id="play-text">일시정지</span>
+        </button>
+        <button id="step-btn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition" title="1단계 전진">
+          ⏭ 1단계
+        </button>
+        <button id="reset-btn" class="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium rounded-lg border border-slate-700 transition">
+          ↺ 리셋
+        </button>
+      </div>
+
+      <!-- Scenario Selector -->
+      <div class="flex items-center gap-2 border-r border-slate-700/60 pr-3">
+        <label for="scenario-select" class="text-xs text-slate-400 font-medium whitespace-nowrap">3D 미로 맵:</label>
+        <select id="scenario-select" class="bg-slate-900 border border-slate-700 rounded-lg text-xs px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-cyan-400">
+          <option value="multi_level_3d" selected>1단계 [기본] 3D 복합 미로 (벽두께 2.0cm · 장애물 5~6개)</option>
+          <option value="zigzag_labyrinth">2단계 [초급] 다단 지그재그 미로 (벽두께 1.6cm · 장애물 6~7개)</option>
+          <option value="grid_matrix">3단계 [중급] 다중 격자 교차 미로 (벽두께 1.2cm · 장애물 7~8개)</option>
+          <option value="spiral_ascent">4단계 [고급] 3중 스파이럴 미로 (벽두께 0.9cm · 장애물 8~9개)</option>
+          <option value="extreme_championship">5단계 [최고난도] 실제 복잡 라비린스 미로 (벽두께 0.6cm · 장애물 9~10개)</option>
+        </select>
+        <button id="btn-reseed-hazards" class="px-2.5 py-1.5 bg-amber-600/90 hover:bg-amber-500 text-white text-xs font-bold rounded-lg transition flex items-center gap-1 shadow-sm whitespace-nowrap active:scale-95" title="통로 장애물(기둥/풍선 3~5개) 랜덤 재배치">
+          <span>🎲</span>
+          <span>장애물 재배치</span>
+        </button>
+      </div>
+
+      <!-- Toggles -->
+      <div class="flex items-center gap-3 text-xs text-slate-300">
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="toggle-sensing-radius" checked class="rounded bg-slate-800 border-slate-700 text-cyan-500 focus:ring-0">
+          <span>감지 반경 (12cm)</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="toggle-trail" checked class="rounded bg-slate-800 border-slate-700 text-amber-500 focus:ring-0">
+          <span>비행 궤적</span>
+        </label>
+        <label class="flex items-center gap-1.5 cursor-pointer">
+          <input type="checkbox" id="toggle-ground-shadow" checked class="rounded bg-slate-800 border-slate-700 text-sky-400 focus:ring-0">
+          <span>바닥 위치 그림자</span>
+        </label>
+      </div>
+
+      <div class="text-[11px] text-slate-400 border-l border-slate-700/60 pl-3 hidden sm:block">
+        <span>💡 모든 뷰(1·2·3단계) 마우스 휠 줌인/아웃 &amp; 드래그 회전 지원</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Simulation Logic Script -->
+  <script>
+    // =========================================================================
+    // FlyMind 3D Simulation Engine
+    // - Chamber dimensions: 1.0m (X) x 1.0m (Z) x 0.25m (Y Height - halved!)
+    // - Wall thickness: exactly 2.0 cm (0.02m)
+    // - Open Bottom (Hanging) Walls: visual problem solved with Luminous Floor Runway,
+    //   Arch Frame Posts, and Neon Bottom Edges!
+    // - Bee customization side panel with reference image and live parameter sliders!
+    // - Cameras:
+    //   1) 'smart_drone': 스마트 드론뷰 (Spring-arm lerp smoothly following bee)
+    //   2) 'bee_iso': 꿀벌중심 쿼터뷰 (45-degree Isometric view centered on bee)
+    // - 50% Wing Flap Speed Reduction: Base rate reduced from 36Hz to 18Hz!
+    // =========================================================================
+
+    const ARENA_SIZE = 1.0;            // 1.0m Width & Length
+    const HALF_ARENA = ARENA_SIZE / 2; // 0.5m
+    const CHAMBER_HEIGHT = 0.20;       // Exactly 20cm (0.20m Chamber Height)
+    const WALL_THICKNESS = 0.02;       // 2cm Wall Thickness
+    const LOW_CRUISE_HEIGHT = 0.020;   // 2.0cm Default Low Cruise Height
+    const SENSING_RADIUS = 0.12;       // 12cm Visualized Detection Radius
+    const BEE_ENTITY_LENGTH = 0.01;    // 1.0cm (10mm) Bee Length
+    const BEE_COLLISION_RADIUS = 0.0055; // 5.5mm Collision Radius
+
+    const STATES = {
+      CRUISE: '기본 저공 비행 (CRUISE)',
+      AVOID_STEER: '벽면 회피 선회 (STEER)',
+      CLIMB_OVER: '상단 턱 도약 (FLY OVER)',
+      DIVE_UNDER: '하단 런웨이 통과 (FLY UNDER)',
+      LEVEL_FLIGHT: '상공 통과 중 (CROSSING)',
+      RETURN_CRUISE: '저공 복귀 (RETURNING)',
+      BUMP_REACTION: '💥 벽면 충돌 반동 (RECOIL)',
+      ROTATE_EVADE: '🔄 회전 회피 후 재시도 (RETRY)',
+      GOAL_REACHED: '목표 도달 성공 (GOAL REACHED)'
+    };
+
+    let currentState = STATES.CRUISE;
+    let isPaused = false;
+    let cameraMode = 'smart_drone'; // 'smart_drone' (스마트 드론뷰) or 'bee_iso' (꿀벌중심 쿼터뷰)
+    let currentScenario = 'multi_level_3d';
+    let simulationTime = 0;
+
+    // =========================================================================
+    // FLYMIND AI INFERENCE ENGINES & NEURAL CIRCUIT TELEMETRY
+    // - Pre-trained Weights / Benchmarking without training overhead
+    // =========================================================================
+    const ENGINES = {
+      UNTRAINED: 'untrained',        // [학습 전] Random Walk & Delayed Avoidance
+      BIO_REFLEX: 'bio_reflex',      // [생체 반사] Braitenberg Optic Flow
+      PRETRAINED_RL: 'pretrained_rl' // [학습 후] Optimal 3D Gliding & Predictive Slalom
+    };
+    let currentEngine = ENGINES.BIO_REFLEX;
+
+    const benchmarkStats = {
+      untrained: { bumps: 0, steps: 0, rank: 'C (미흡)', successRate: '64.2%', speed: '8.5 cm/s' },
+      bio_reflex: { bumps: 0, steps: 0, rank: 'A+ (우수)', successRate: '98.8%', speed: '12.0 cm/s' },
+      pretrained_rl: { bumps: 0, steps: 0, rank: 'S+ (최적)', successRate: '100%', speed: '14.5 cm/s' }
+    };
+
+    // Multi-Pathway Biological Neural Circuit State
+    // 1) Gaze (3): [좌측 시선, 상·하 시선, 우측 시선]
+    // 2) Exit Check (3): [좌측 출구 확인, 상·하 출구 확인, 우측 출구 확인]
+    // 3) Body Organs (3): [🦵 좌다리(좌이동), 🪽 날개(상하양력), 🦵 우다리(우이동)]
+    const neuralNet = {
+      inputs: [0.3, 0.4, 0.3],
+      hidden: [0.3, 0.4, 0.3],
+      outputs: [0.3, 0.5, 0.3],
+      overallFiring: 0.72,
+      legActivity: 0.42,
+      wingActivity: 0.48,
+      gazeThreat: 0.15,
+      waveHistory: []
+    };
+
+    // 10 Anatomical Multi-Pathways (Gaze -> Exit Check -> Legs/Wings)
+    const BIO_PATHWAYS = [
+      // Stage 1 -> Stage 2 (시선 자극 -> 출구 확인)
+      { layer: 0, from: 0, to: 0, type: 'leg',  weight: 0.95, phase: 0.10 }, // 좌측 시선 -> 좌측 출구 확인
+      { layer: 0, from: 2, to: 0, type: 'leg',  weight: 1.00, phase: 0.45 }, // 우측 벽 시선 -> 반대편 좌측 출구 탐색
+      { layer: 0, from: 2, to: 2, type: 'leg',  weight: 0.95, phase: 0.25 }, // 우측 시선 -> 우측 출구 확인
+      { layer: 0, from: 0, to: 2, type: 'leg',  weight: 1.00, phase: 0.60 }, // 좌측 벽 시선 -> 반대편 우측 출구 탐색
+      { layer: 0, from: 1, to: 1, type: 'wing', weight: 1.00, phase: 0.00 }, // 상·하 시선 -> 상·하 출구(도약턱/런웨이) 확인
+      // Stage 2 -> Stage 3 (출구 확인 -> 다리/날개 기관 제어)
+      { layer: 1, from: 0, to: 0, type: 'leg',  weight: 1.00, phase: 0.15 }, // 좌측 출구 -> 🦵 좌측 다리 (좌이동)
+      { layer: 1, from: 2, to: 2, type: 'leg',  weight: 1.00, phase: 0.35 }, // 우측 출구 -> 🦵 우측 다리 (우이동)
+      { layer: 1, from: 1, to: 1, type: 'wing', weight: 1.00, phase: 0.05 }, // 상·하 출구 -> 🪽 날개 근육 (위·아래 이동)
+      // Cross-Organ Coordination (좌우 이동 시 날개 양력 동시 보조 / 상하 도약 시 다리 균형)
+      { layer: 1, from: 0, to: 1, type: 'coord', weight: 0.75, phase: 0.50 }, // 좌측 선회 출구 -> 🪽 날개 양력 협응
+      { layer: 1, from: 2, to: 1, type: 'coord', weight: 0.75, phase: 0.75 }  // 우측 선회 출구 -> 🪽 날개 양력 협응
+    ];
+
+    // Three.js Core
+    let scene, camera, renderer;
+    let beeMasterGroup, beeAnimGroup, beeDeformGroup;
+    let bodyMesh, stingerMesh, eyeMeshes = [], highlightGroups = [];
+    let eyeNormalMat, eyeBlackoutMat, wingMaterial, bodyMaterial;
+    let wingRootLeft, wingRootRight, subWingRootLeft, subWingRootRight;
+    let wingPivotLeft, wingPivotRight, subWingPivotLeft, subWingPivotRight;
+    let dizzyStarsGroup, impactRingMesh;
+    let radarRadiusSphere, radarDiskMesh;
+
+    let obstacles = [];
+    let underpassPortals = [];
+    let dynamicHazards = []; // 통로 기둥 및 움직이는 풍선 장애물 (3~5개 랜덤 배치) // Visual runway markers for hanging walls
+    let goalGroup, goalMesh, goalGlow;
+    let trailLine, trailGeometry, trailPositions = [];
+
+    // Customization State
+    const customConfig = {
+      wingScale: 1.0,
+      colorDepth: 1.15,
+      wingOpacity: 0.92,
+      flapSpeed: 1.0,     // 1.0x = 18.0 Hz (50% reduction from 36Hz)
+      wingPose: 'idle',   // 'idle' | 'up' | 'flat' | 'down'
+      subWingsVisible: true,
+      eyeStyle: 'glossy'  // 'glossy' | 'blackout'
+    };
+
+    // =========================================================================
+    // CAMERA CONTROLLER STATES
+    // 1) 스마트 드론뷰 (Smart Drone View)
+    // 2) 꿀벌중심 쿼터뷰 (Bee-Centered Quarter View)
+    // =========================================================================
+    // =========================================================================
+    // CAMERA CONTROLLER STATES (3가지 핵심 시점)
+    // 1) 스마트 드론뷰 ('smart_drone'): 꿀벌 이동만 추종, 회전 완전 고정 (멀미 제로)
+    // 2) 3인칭 원거리 뷰 ('tpv'): 미로 전체(1m x 1m) 360도 궤도 회전 및 줌인/아웃
+    // 3) 꿀벌 쿼터뷰 ('bee_iso'): 꿀벌을 중심에 두고 45도 대각선 입체 조망
+    // =========================================================================
+    // =========================================================================
+    // 3-STAGE PROGRESSIVE CAMERA SYSTEM (확대 ➔ 중간 ➔ 축소 3단계, 전 모드 줌인/아웃 지원)
+    // 1단계 확대 ('smart_drone'): 근접 스마트 드론뷰 (무회전 밀착 추종, 기본 거리 0.24m)
+    // 2단계 중간 ('rear_chase') : 2인칭 후방 추종뷰 (꿀벌 후방 상공에서 시선 방향과 출구 조망, 기본 거리 0.42m)
+    // 3단계 축소 ('tpv')        : 3인칭 전체 조망뷰 (1m×1m 미로 전체 원거리 조망, 기본 거리 1.25m)
+    // =========================================================================
+    let currentWallThickness = 0.020; // 미로 단계별 동적 벽 두께 (2.0cm -> 0.6cm)
+    let currentWaypoints = [];        // 복잡한 미로 탈출 경로 가이드 포인트
+
+    const droneControl = {
+      dist: 0.24,            // 확대뷰 거리: 최소 0.022m(2.2cm 꿀벌 얼굴 코앞 초근접!) ~ 최대 0.85m
+      fixedYaw: Math.PI,     // 무회전 고정 관찰 방향 (드래그로 얼굴 정면/측면 자유 회전)
+      pitch: 0.85,           // 기본 드론 앵글 (얼굴 클로즈업 시 눈높이 0.18 rad까지 자동/수동 조절)
+      faceMode: false,       // 꿀벌 얼굴 초근접 클로즈업 활성 여부
+      pos: new THREE.Vector3(0, 0.22, -0.54),
+      lookTarget: new THREE.Vector3(0, 0.02, -0.40)
+    };
+
+    const rearChaseControl = {
+      dist: 0.42,            // 2단계 중간 후방 거리 (0.16m ~ 0.95m 줌인/아웃)
+      pitch: 0.68,           // 약 39도 후방 상공 앙각 (꿀벌 등 + 전방 시선 출구 동시 확인)
+      yawOffset: 0.0,        // 마우스 드래그로 후방 좌/우 각도 미세 회전 가능
+      smoothHeading: 0.0,    // 꿀벌 회전 시 어지럽지 않도록 부드럽게 감쇠 추종하는 후방 각도
+      pos: new THREE.Vector3(0, 0.28, -0.72),
+      lookTarget: new THREE.Vector3(0, 0.03, -0.35)
+    };
+
+    const tpvControl = {
+      distance: 1.25,        // 3단계 축소 원거리 조망 거리 (0.35m ~ 2.40m 줌인/아웃)
+      theta: Math.PI * 0.25, // 360도 수평 공전 각도
+      phi: Math.PI * 0.28,   // 수직 앙각
+      target: new THREE.Vector3(0, 0.06, 0) // 미로 중심
+    };
+
+    let isMouseDragging = false;
+    const prevMousePos = { x: 0, y: 0 };
+
+    // Agent State: 50% reduced base wing flap speed (18Hz base, was 36Hz)
+    const agent = {
+      x: 0.0,
+      y: LOW_CRUISE_HEIGHT,
+      z: -0.40,
+      heading: 0,
+      targetHeading: 0,
+      targetY: LOW_CRUISE_HEIGHT,
+      speed: 0.11, // 11 cm/s
+      turnRate: 5.2, // rad/s
+      verticalSpeed: 0.35, // m/s
+      wingFlapPhase: 0,
+      // 50% Reduced Wing Flap Frequency: 18.0 Hz (was 36 Hz)
+      wingRate: 18.0,
+
+      // Bump & Recoil State
+      bumpTimer: 0.0,
+      recoilVel: 0.0,
+      recoilDirX: 0.0,
+      recoilDirZ: 0.0,
+      wobbleRoll: 0.0,
+      wobblePitch: 0.0,
+      rotateEvadeTimer: 0.0,
+      rotateEvadeTarget: 0.0,
+
+      // Clearance tracking
+      targetObstacle: null,
+      obstaclePassedDist: 0.0
+    };
+
+    const goal = {
+      x: 0.0,
+      y: 0.02,
+      z: 0.40,
+      radius: 0.025
+    };
+
+    // Radar Sensor Telemetry
+    const sensors = {
+      front: 1.0,
+      left: 1.0,
+      right: 1.0,
+      up: 1.0,
+      down: 1.0,
+      closestObstacle: null,
+      threatLevel: 'clear'
+    };
+
+    // =========================================================================
+    // 1. BEE ASSET BUILDER & REAL-TIME CUSTOMIZATION ENGINE
+    // =========================================================================
+    function adjustHexRichness(hexStr, richnessMult) {
+      const num = parseInt(hexStr.replace('#', ''), 16);
+      let r = (num >> 16) & 255;
+      let g = (num >> 8) & 255;
+      let b = num & 255;
+
+      const darkFactor = Math.pow(1.0 / richnessMult, 0.85);
+      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      const satBoost = 1.0 + (richnessMult - 1.0) * 0.65;
+
+      r = (luma + (r - luma) * satBoost) * darkFactor;
+      g = (luma + (g - luma) * satBoost) * darkFactor;
+      b = (luma + (b - luma) * satBoost) * darkFactor;
+
+      const clamp = (v) => Math.max(0, Math.min(255, Math.round(v)));
+      return `rgb(${clamp(r)}, ${clamp(g)}, ${clamp(b)})`;
+    }
+
+    function createBeeBodyStripeTexture(richnessMult = 1.15) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1024;
+      canvas.height = 512;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width, h = canvas.height;
+
+      const baseYellow = adjustHexRichness('#dab022', richnessMult);
+      ctx.fillStyle = baseYellow;
+      ctx.fillRect(0, 0, w, h);
+
+      function drawBand(startRatio, endRatio, hexColor) {
+        const x0 = Math.floor(startRatio * w);
+        const x1 = Math.ceil(endRatio * w);
+        const feather = 6;
+        const col = adjustHexRichness(hexColor, richnessMult);
+
+        ctx.fillStyle = col;
+        ctx.fillRect(x0 + feather, 0, (x1 - x0) - feather * 2, h);
+
+        const gradLeft = ctx.createLinearGradient(x0 - feather, 0, x0 + feather, 0);
+        gradLeft.addColorStop(0, 'rgba(0,0,0,0)');
+        gradLeft.addColorStop(1, col);
+        ctx.fillStyle = gradLeft;
+        ctx.fillRect(x0 - feather, 0, feather * 2, h);
+
+        const gradRight = ctx.createLinearGradient(x1 - feather, 0, x1 + feather, 0);
+        gradRight.addColorStop(0, col);
+        gradRight.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = gradRight;
+        ctx.fillRect(x1 - feather, 0, feather * 2, h);
+      }
+
+      drawBand(0.00, 0.13, '#c2541c');
+      drawBand(0.12, 0.27, '#3f1f0c');
+      drawBand(0.26, 0.43, '#d17e16');
+      drawBand(0.42, 0.60, '#cf5914');
+      drawBand(0.59, 1.00, '#dab022');
+
+      const vertGrad = ctx.createLinearGradient(0, 0, 0, h);
+      vertGrad.addColorStop(0.00, 'rgba(255, 244, 195, 0.10)');
+      vertGrad.addColorStop(0.42, 'rgba(0, 0, 0, 0.0)');
+      vertGrad.addColorStop(0.76, 'rgba(65, 25, 0, 0.18)');
+      vertGrad.addColorStop(1.00, 'rgba(45, 16, 0, 0.36)');
+      ctx.fillStyle = vertGrad;
+      ctx.fillRect(0, 0, w, h);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.wrapS = THREE.RepeatWrapping;
+      texture.repeat.set(-1, 1);
+      texture.offset.set(1, 0);
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function createWingGradientTexture(richnessMult = 1.15) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0.0, adjustHexRichness('#5699b5', richnessMult));
+      grad.addColorStop(0.55, adjustHexRichness('#73b7cf', richnessMult));
+      grad.addColorStop(1.0, adjustHexRichness('#8ac9de', richnessMult));
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 256, 256);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      texture.needsUpdate = true;
+      return texture;
+    }
+
+    function createHeartWingGeometry(length, maxWidth, thickness, side, isForewing = true) {
+      const radialSegs = 36;
+      const lengthSegs = 28;
+      const geom = new THREE.SphereGeometry(1, radialSegs, lengthSegs);
+      const pos = geom.attributes.position;
+      const uv = geom.attributes.uv;
+
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+
+        const u = (y + 1.0) * 0.5;
+        const chordScale = Math.pow(u, 0.25) * (0.80 + 0.45 * u);
+
+        const heartOffsetX = isForewing
+          ? -maxWidth * (0.48 * Math.pow(u, 0.72) - 0.12 * Math.pow(u, 2.0))
+          : +maxWidth * (0.42 * Math.pow(u, 0.78));
+
+        const thickScale = Math.pow(u, 0.22) * (0.88 + 0.22 * u);
+        const verticalLift = (0.58 * thickness * thickScale) + 0.042 * Math.sin(u * Math.PI * 0.85);
+
+        const newX = x * maxWidth * chordScale + heartOffsetX;
+        const newY = -side * z * thickness * thickScale + verticalLift;
+        const newZ = side * (u * length);
+
+        pos.setXYZ(i, newX, newY, newZ);
+        uv.setXY(i, (x + 1.0) * 0.5, u);
+      }
+
+      geom.computeVertexNormals();
+      return geom;
+    }
+
+    function createBeeBodyGeometry() {
+      const geom = new THREE.SphereGeometry(1.0, 48, 36);
+      const pos = geom.attributes.position;
+      const uv = geom.attributes.uv;
+
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const y = pos.getY(i);
+        const z = pos.getZ(i);
+
+        const scaleX = 1.36;
+        const frontBackProfile = 1.0 - 0.04 * x * (1.0 - y * y);
+        const scaleY = 0.96 * frontBackProfile;
+        const scaleZ = 1.02 * frontBackProfile;
+
+        const fx = x * scaleX;
+        const fy = y * scaleY;
+        const fz = z * scaleZ;
+
+        pos.setXYZ(i, fx, fy, fz);
+
+        const uCoord = THREE.MathUtils.clamp((fx / scaleX + 1.0) * 0.5, 0.001, 0.999);
+        const vCoord = THREE.MathUtils.clamp((1.0 - y) * 0.5, 0.001, 0.999);
+        uv.setXY(i, uCoord, vCoord);
+      }
+
+      geom.computeVertexNormals();
+      return geom;
+    }
+
+    function buildBeeAssets() {
+      beeMasterGroup = new THREE.Group();
+      beeAnimGroup = new THREE.Group();
+      beeDeformGroup = new THREE.Group();
+
+      const BODY_TOP_VERTEX = new THREE.Vector3(0.0, 0.96, 0.0);
+      const BASE_MAIN_SWEEP = 0.22;
+      const BASE_SUB_SWEEP = 0.32;
+
+      // 1. Body Mesh
+      const bodyGeom = createBeeBodyGeometry();
+      bodyMaterial = new THREE.MeshStandardMaterial({
+        map: createBeeBodyStripeTexture(customConfig.colorDepth),
+        roughness: 0.52,
+        metalness: 0.01
+      });
+      bodyMesh = new THREE.Mesh(bodyGeom, bodyMaterial);
+      bodyMesh.castShadow = true;
+      beeDeformGroup.add(bodyMesh);
+
+      // 2. Conical Stinger
+      const stingerGeom = new THREE.ConeGeometry(0.16, 0.42, 24);
+      stingerGeom.rotateZ(-Math.PI / 2);
+      const stingerMat = new THREE.MeshStandardMaterial({ color: 0x3e4148, roughness: 0.48, metalness: 0.12 });
+      stingerMesh = new THREE.Mesh(stingerGeom, stingerMat);
+      stingerMesh.position.set(1.42, -0.02, 0);
+      stingerMesh.castShadow = true;
+      beeDeformGroup.add(stingerMesh);
+
+      // 3. 3D Eyes with Blackout Option & Catchlights
+      eyeNormalMat = new THREE.MeshPhysicalMaterial({ color: 0x09090b, roughness: 0.08, clearcoat: 1.0 });
+      eyeBlackoutMat = new THREE.MeshStandardMaterial({ color: 0x020202, roughness: 0.98 });
+      const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+      eyeMeshes = [];
+      highlightGroups = [];
+
+      [true, false].forEach((isLeft) => {
+        const side = isLeft ? 1 : -1;
+        const eyeGroup = new THREE.Group();
+        eyeGroup.position.set(-1.02, 0.02, side * 0.62);
+        eyeGroup.rotation.y = -side * 0.42;
+
+        const eyeMesh = new THREE.Mesh(new THREE.SphereGeometry(0.30, 24, 24).scale(0.85, 1.0, 0.92), eyeNormalMat);
+        const hlGroup = new THREE.Group();
+        const hl1 = new THREE.Mesh(new THREE.SphereGeometry(0.068, 16, 16).scale(0.62, 1.0, 0.85), hlMat);
+        hl1.position.set(-0.18, 0.11, isLeft ? 0.19 : -0.15);
+        const hl2 = new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 12), hlMat);
+        hl2.position.set(-0.14, -0.08, isLeft ? 0.22 : -0.18);
+        hlGroup.add(hl1, hl2);
+
+        eyeGroup.add(eyeMesh, hlGroup);
+        beeDeformGroup.add(eyeGroup);
+        eyeMeshes.push(eyeMesh);
+        highlightGroups.push(hlGroup);
+      });
+
+      // 4. Heart-Shaped 4 Wings
+      wingMaterial = new THREE.MeshPhysicalMaterial({
+        map: createWingGradientTexture(customConfig.colorDepth),
+        color: 0xffffff,
+        roughness: 0.26,
+        clearcoat: 0.55,
+        transparent: true,
+        opacity: customConfig.wingOpacity,
+        side: THREE.DoubleSide
+      });
+
+      wingRootLeft = new THREE.Group(); wingPivotLeft = new THREE.Group();
+      wingRootLeft.position.copy(BODY_TOP_VERTEX); wingRootLeft.rotation.y = -BASE_MAIN_SWEEP;
+      const mwL = new THREE.Mesh(createHeartWingGeometry(1.488, 0.54, 0.162, 1, true), wingMaterial);
+      mwL.castShadow = true; wingPivotLeft.add(mwL); wingRootLeft.add(wingPivotLeft);
+
+      wingRootRight = new THREE.Group(); wingPivotRight = new THREE.Group();
+      wingRootRight.position.copy(BODY_TOP_VERTEX); wingRootRight.rotation.y = BASE_MAIN_SWEEP;
+      const mwR = new THREE.Mesh(createHeartWingGeometry(1.488, 0.54, 0.162, -1, true), wingMaterial);
+      mwR.castShadow = true; wingPivotRight.add(mwR); wingRootRight.add(wingPivotRight);
+
+      subWingRootLeft = new THREE.Group(); subWingPivotLeft = new THREE.Group();
+      subWingRootLeft.position.copy(BODY_TOP_VERTEX); subWingRootLeft.rotation.y = BASE_SUB_SWEEP;
+      const swL = new THREE.Mesh(createHeartWingGeometry(1.008, 0.408, 0.138, 1, false), wingMaterial);
+      swL.castShadow = true; subWingPivotLeft.add(swL); subWingRootLeft.add(subWingPivotLeft);
+
+      subWingRootRight = new THREE.Group(); subWingPivotRight = new THREE.Group();
+      subWingRootRight.position.copy(BODY_TOP_VERTEX); subWingRootRight.rotation.y = -BASE_SUB_SWEEP;
+      const swR = new THREE.Mesh(createHeartWingGeometry(1.008, 0.408, 0.138, -1, false), wingMaterial);
+      swR.castShadow = true; subWingPivotRight.add(swR); subWingRootRight.add(subWingPivotRight);
+
+      beeDeformGroup.add(wingRootLeft, wingRootRight, subWingRootLeft, subWingRootRight);
+
+      // 5. Dizzy Stars Overhead
+      dizzyStarsGroup = new THREE.Group();
+      dizzyStarsGroup.position.set(-0.55, 1.35, 0);
+      dizzyStarsGroup.visible = false;
+      beeDeformGroup.add(dizzyStarsGroup);
+
+      const starMat = new THREE.MeshBasicMaterial({ color: 0xfacc15 });
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.12, 0), starMat);
+        star.position.set(Math.cos(angle) * 0.55, 0, Math.sin(angle) * 0.55);
+        dizzyStarsGroup.add(star);
+      }
+
+      beeDeformGroup.rotation.y = Math.PI / 2;
+
+      // Scale to exactly 1.0 cm (0.01m)
+      const targetScale = BEE_ENTITY_LENGTH / 3.0;
+      beeDeformGroup.scale.set(targetScale, targetScale, targetScale);
+
+      beeAnimGroup.add(beeDeformGroup);
+      beeMasterGroup.add(beeAnimGroup);
+
+      // =========================================================================
+      // 꿀벌 바닥 투영 그림자 & 위치 타겟 링 & 수직 고도 가이드 라인
+      // =========================================================================
+      const shadowGroup = new THREE.Group();
+
+      // 1. 바닥 접촉 음영 (소프트 다크 섀도우)
+      const shadowBlobGeo = new THREE.CircleGeometry(0.016, 24);
+      shadowBlobGeo.rotateX(-Math.PI / 2);
+      const shadowBlobMat = new THREE.MeshBasicMaterial({
+        color: 0x020617,
+        transparent: true,
+        opacity: 0.68,
+        depthWrite: false
+      });
+      const shadowBlobMesh = new THREE.Mesh(shadowBlobGeo, shadowBlobMat);
+      shadowBlobMesh.position.y = 0.0012;
+      shadowGroup.add(shadowBlobMesh);
+
+      // 2. 바닥 위치 타겟팅 링 (발광 청록 링 - 꿀벌의 정확한 바닥 X/Z 좌표 표시)
+      const reticleGeo = new THREE.RingGeometry(0.013, 0.017, 32);
+      reticleGeo.rotateX(-Math.PI / 2);
+      const reticleMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.70,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const reticleMesh = new THREE.Mesh(reticleGeo, reticleMat);
+      reticleMesh.position.y = 0.0016;
+      shadowGroup.add(reticleMesh);
+
+      // 3. 수직 고도선 (꿀벌이 상승할 때 바닥 그림자와 공중의 벌을 연결해 높이 체감)
+      const tetherGeo = new THREE.BufferGeometry();
+      const tetherPositions = new Float32Array([0, 0.002, 0,  0, 0.02, 0]);
+      tetherGeo.setAttribute('position', new THREE.BufferAttribute(tetherPositions, 3));
+      const tetherMat = new THREE.LineBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.45
+      });
+      const tetherLine = new THREE.Line(tetherGeo, tetherMat);
+      shadowGroup.add(tetherLine);
+
+      scene.add(shadowGroup);
+
+      beeMasterGroup.userData.groundShadow = {
+        group: shadowGroup,
+        blob: shadowBlobMesh,
+        reticle: reticleMesh,
+        tetherGeo: tetherGeo,
+        tetherLine: tetherLine
+      };
+
+      // 6. Sensing Radius: Smooth Aura Bubble (No wireframe mesh!)
+      const radarSphereGeo = new THREE.SphereGeometry(SENSING_RADIUS, 32, 24);
+      const radarMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.09,
+        wireframe: false,
+        depthWrite: false
+      });
+      radarRadiusSphere = new THREE.Mesh(radarSphereGeo, radarMat);
+      beeMasterGroup.add(radarRadiusSphere);
+
+      const diskGeo = new THREE.RingGeometry(0.001, SENSING_RADIUS, 36);
+      diskGeo.rotateX(-Math.PI / 2);
+      const diskMat = new THREE.MeshBasicMaterial({
+        color: 0x38bdf8,
+        transparent: true,
+        opacity: 0.14,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      radarDiskMesh = new THREE.Mesh(diskGeo, diskMat);
+      beeMasterGroup.add(radarDiskMesh);
+
+      // Impact Shockwave Ring
+      const ringGeom = new THREE.RingGeometry(0.003, 0.012, 24);
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: 0xef4444,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.0
+      });
+      impactRingMesh = new THREE.Mesh(ringGeom, ringMat);
+      impactRingMesh.visible = false;
+      scene.add(impactRingMesh);
+
+      beeMasterGroup.position.set(agent.x, agent.y, agent.z);
+      scene.add(beeMasterGroup);
+    }
+
+    function applyEyeAppearance(isBlackout) {
+      eyeMeshes.forEach(m => m.material = isBlackout ? eyeBlackoutMat : eyeNormalMat);
+      highlightGroups.forEach(g => g.visible = !isBlackout);
+      if (dizzyStarsGroup) dizzyStarsGroup.visible = isBlackout;
+    }
+
+    // Real-time Customization setters
+    function setWingScale(mult) {
+      customConfig.wingScale = mult;
+      [wingRootLeft, wingRootRight, subWingRootLeft, subWingRootRight].forEach(r => {
+        if (r) r.scale.setScalar(mult);
+      });
+      const pct = Math.round(mult * 100);
+      const slider = document.getElementById('slider-wing-scale');
+      const label = document.getElementById('label-wing-scale');
+      if (slider) slider.value = pct;
+      if (label) label.textContent = `${pct}%`;
+    }
+
+    function setBeeColorDepth(depth) {
+      customConfig.colorDepth = depth;
+      if (bodyMaterial && bodyMaterial.map) {
+        bodyMaterial.map.dispose();
+        bodyMaterial.map = createBeeBodyStripeTexture(depth);
+        bodyMaterial.needsUpdate = true;
+      }
+      if (wingMaterial && wingMaterial.map) {
+        wingMaterial.map.dispose();
+        wingMaterial.map = createWingGradientTexture(depth);
+        wingMaterial.needsUpdate = true;
+      }
+      const label = document.getElementById('label-color-depth');
+      if (label) label.textContent = `${depth.toFixed(2)}x`;
+    }
+
+    function setWingOpacity(op) {
+      customConfig.wingOpacity = op;
+      if (wingMaterial) {
+        wingMaterial.opacity = op;
+        wingMaterial.needsUpdate = true;
+      }
+      const label = document.getElementById('label-wing-opacity');
+      if (label) label.textContent = `${Math.round(op * 100)}%`;
+    }
+
+    // =========================================================================
+    // 2. 3D SCENE & 1m x 1m x 0.25m CHAMBER (HEIGHT HALVED TO 25CM!)
+    // =========================================================================
+    function initScene() {
+      const container = document.getElementById('canvas-container');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060914);
+      scene.fog = new THREE.FogExp2(0x060914, 0.40);
+
+      camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.001, 20);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      const ambientLight = new THREE.AmbientLight(0xffffff, 0.88);
+      scene.add(ambientLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfffbeb, 0.95);
+      dirLight.position.set(0.9, 1.4, 0.9);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 1024;
+      dirLight.shadow.mapSize.height = 1024;
+      dirLight.shadow.camera.near = 0.1;
+      dirLight.shadow.camera.far = 3.5;
+      dirLight.shadow.camera.left = -0.7;
+      dirLight.shadow.camera.right = 0.7;
+      dirLight.shadow.camera.top = 0.7;
+      dirLight.shadow.camera.bottom = -0.7;
+      scene.add(dirLight);
+
+      const cyanPoint = new THREE.PointLight(0x38bdf8, 0.5, 1.8);
+      cyanPoint.position.set(-0.4, 0.35, -0.4);
+      scene.add(cyanPoint);
+
+      buildCleanChamber();
+      buildBeeAssets();
+      buildGoal();
+      buildTrail();
+      loadScenario(currentScenario);
+
+      setupInteractiveControls(container);
+      setCameraMode('smart_drone');
+      // 초기 카메라 위치 설정 (무회전 고정각 상공 38cm 드론 뷰)
+      const initHDist = droneControl.dist * Math.cos(droneControl.pitch);
+      const initH = Math.max(0.26, droneControl.dist * Math.sin(droneControl.pitch));
+      droneControl.pos.set(
+        agent.x + Math.sin(droneControl.fixedYaw) * initHDist,
+        agent.y + initH,
+        agent.z + Math.cos(droneControl.fixedYaw) * initHDist
+      );
+      droneControl.lookTarget.set(agent.x, agent.y + 0.005, agent.z);
+      camera.position.copy(droneControl.pos);
+      camera.lookAt(droneControl.lookTarget);
+
+      window.addEventListener('resize', onWindowResize);
+    }
+
+    function buildCleanChamber() {
+      // 1. Sleek solid floor plane (no grid helper, no mesh net!)
+      const floorGeo = new THREE.PlaneGeometry(ARENA_SIZE, ARENA_SIZE);
+      const floorMat = new THREE.MeshStandardMaterial({
+        color: 0x090f20,
+        roughness: 0.85,
+        metalness: 0.15
+      });
+      const floor = new THREE.Mesh(floorGeo, floorMat);
+      floor.rotation.x = -Math.PI / 2;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      // 2. Subtle 1m floor boundary border line
+      const floorBorderPts = [
+        new THREE.Vector3(-HALF_ARENA, 0.001, -HALF_ARENA),
+        new THREE.Vector3(HALF_ARENA, 0.001, -HALF_ARENA),
+        new THREE.Vector3(HALF_ARENA, 0.001, HALF_ARENA),
+        new THREE.Vector3(-HALF_ARENA, 0.001, HALF_ARENA),
+        new THREE.Vector3(-HALF_ARENA, 0.001, -HALF_ARENA)
+      ];
+      const floorBorderGeo = new THREE.BufferGeometry().setFromPoints(floorBorderPts);
+      const floorBorderLine = new THREE.Line(floorBorderGeo, new THREE.LineBasicMaterial({
+        color: 0x1e293b,
+        transparent: true,
+        opacity: 0.6
+      }));
+      scene.add(floorBorderLine);
+
+      // 3. Acrylic corner pillars (Height 0.25m = 25cm)
+      const pillarGeo = new THREE.CylinderGeometry(0.004, 0.004, CHAMBER_HEIGHT, 10);
+      const pillarMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.35 });
+      [
+        [-HALF_ARENA, -HALF_ARENA], [HALF_ARENA, -HALF_ARENA],
+        [-HALF_ARENA, HALF_ARENA],  [HALF_ARENA, HALF_ARENA]
+      ].forEach(([cx, cz]) => {
+        const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+        pillar.position.set(cx, CHAMBER_HEIGHT / 2, cz);
+        scene.add(pillar);
+      });
+    }
+
+    function buildGoal() {
+      goalGroup = new THREE.Group();
+
+      const dropGeo = new THREE.SphereGeometry(goal.radius, 16, 12);
+      dropGeo.scale(1, 0.6, 1);
+      const dropMat = new THREE.MeshStandardMaterial({
+        color: 0xf59e0b,
+        emissive: 0xd97706,
+        emissiveIntensity: 0.7,
+        roughness: 0.2
+      });
+      goalMesh = new THREE.Mesh(dropGeo, dropMat);
+      goalMesh.castShadow = true;
+      goalGroup.add(goalMesh);
+
+      const ringGeo = new THREE.RingGeometry(goal.radius * 1.1, goal.radius * 1.6, 20);
+      ringGeo.rotateX(-Math.PI / 2);
+      goalGlow = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide, transparent: true, opacity: 0.55 }));
+      goalGlow.position.y = 0.002;
+      goalGroup.add(goalGlow);
+
+      goalGroup.position.set(goal.x, goal.y, goal.z);
+      scene.add(goalGroup);
+    }
+
+    function buildTrail() {
+      const maxTrailPoints = 400;
+      trailPositions = new Float32Array(maxTrailPoints * 3);
+      trailGeometry = new THREE.BufferGeometry();
+      trailGeometry.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+      trailLine = new THREE.Line(trailGeometry, new THREE.LineBasicMaterial({
+        color: 0xf59e0b,
+        transparent: true,
+        opacity: 0.65,
+        blending: THREE.AdditiveBlending
+      }));
+      scene.add(trailLine);
+    }
+
+    let trailCount = 0;
+    let lastTrailX = 999, lastTrailZ = 999;
+
+    function addTrailPoint(x, y, z) {
+      const dx = x - lastTrailX, dz = z - lastTrailZ;
+      if (dx * dx + dz * dz < 0.0001) return;
+      lastTrailX = x; lastTrailZ = z;
+
+      const maxPoints = 400;
+      if (trailCount < maxPoints) {
+        trailPositions[trailCount * 3] = x;
+        trailPositions[trailCount * 3 + 1] = y;
+        trailPositions[trailCount * 3 + 2] = z;
+        trailCount++;
+        trailGeometry.setDrawRange(0, trailCount);
+      } else {
+        trailPositions.copyWithin(0, 3);
+        trailPositions[(maxPoints - 1) * 3] = x;
+        trailPositions[(maxPoints - 1) * 3 + 1] = y;
+        trailPositions[(maxPoints - 1) * 3 + 2] = z;
+      }
+      trailGeometry.attributes.position.needsUpdate = true;
+    }
+
+    function clearTrail() {
+      trailCount = 0;
+      lastTrailX = 999; lastTrailZ = 999;
+      if (trailGeometry) trailGeometry.setDrawRange(0, 0);
+    }
+
+    // =========================================================================
+    // 3. SOLVING VISIBILITY OF OPEN-BOTTOM WALLS:
+    // - Luminous Floor Runway Portal
+    // - Gate Arch Posts
+    // - Glowing Neon Bottom Edges & Clearance Badges
+    // =========================================================================
+    function clearObstacles() {
+      obstacles.forEach(obs => {
+        if (obs.mesh) {
+          scene.remove(obs.mesh);
+          obs.mesh.geometry.dispose();
+          if (obs.mesh.material) obs.mesh.material.dispose();
+        }
+      });
+      obstacles = [];
+
+      underpassPortals.forEach(portal => {
+        scene.remove(portal);
+      });
+      underpassPortals = [];
+    }
+
+    function addWall(x, z, width, length, yBottom, yTop, openType, label, isPerimeter = false) {
+      const height = yTop - yBottom;
+      const centerY = yBottom + height / 2;
+
+      let mesh = null;
+
+      if (!isPerimeter) {
+        const geo = new THREE.BoxGeometry(width, height, length);
+
+        let color = 0x1e3a8a;
+        let opacity = 0.42;
+        let edgeColor = 0x60a5fa;
+
+        if (openType === 'open_top') {
+          color = 0x0369a1;
+          opacity = 0.45;
+          edgeColor = 0xf59e0b; // Amber luminous edge on hurdle
+        } else if (openType === 'open_bottom') {
+          color = 0x4338ca;
+          opacity = 0.48;
+          edgeColor = 0x38bdf8; // Bright cyan luminous edge on underpass
+        }
+
+        const mat = new THREE.MeshStandardMaterial({
+          color: color,
+          roughness: 0.15,
+          metalness: 0.1,
+          transparent: true,
+          opacity: opacity,
+          side: THREE.DoubleSide
+        });
+
+        mesh = new THREE.Mesh(geo, mat);
+        mesh.position.set(x, centerY, z);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        scene.add(mesh);
+
+        // Neon edge line
+        const edges = new THREE.EdgesGeometry(geo);
+        const edgeLine = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({
+          color: edgeColor,
+          transparent: true,
+          opacity: 0.90
+        }));
+        mesh.add(edgeLine);
+
+        // Luminous Runway & Gate Archway under open-bottom wall
+        if (openType === 'open_bottom') {
+          const portalGroup = new THREE.Group();
+
+          // 1. Glowing Floor Runway Strip beneath the gap
+          const runwayWidth = Math.max(width, 0.08);
+          const runwayLength = Math.max(length, 0.08);
+          const runwayGeo = new THREE.PlaneGeometry(runwayWidth, runwayLength);
+          const runwayMat = new THREE.MeshBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.28,
+            side: THREE.DoubleSide
+          });
+          const runwayMesh = new THREE.Mesh(runwayGeo, runwayMat);
+          runwayMesh.rotation.x = -Math.PI / 2;
+          runwayMesh.position.set(x, 0.002, z);
+          portalGroup.add(runwayMesh);
+
+          // Runway glowing border frame
+          const rBorderGeo = new THREE.EdgesGeometry(runwayGeo);
+          const rBorderLine = new THREE.LineSegments(rBorderGeo, new THREE.LineBasicMaterial({
+            color: 0x38bdf8,
+            transparent: true,
+            opacity: 0.75
+          }));
+          rBorderLine.rotation.x = -Math.PI / 2;
+          rBorderLine.position.set(x, 0.0025, z);
+          portalGroup.add(rBorderLine);
+
+          // 2. Gate Frame Side Posts (connects floor to hanging wall ends)
+          const postGeo = new THREE.CylinderGeometry(0.0035, 0.0035, yBottom, 8);
+          const postMat = new THREE.MeshStandardMaterial({
+            color: 0x38bdf8,
+            emissive: 0x0284c7,
+            emissiveIntensity: 0.4,
+            transparent: true,
+            opacity: 0.75
+          });
+
+          const isWideX = width > length;
+          const offsetDist = (isWideX ? width : length) / 2 - 0.008;
+
+          const post1 = new THREE.Mesh(postGeo, postMat);
+          post1.position.set(x + (isWideX ? -offsetDist : 0), yBottom / 2, z + (isWideX ? 0 : -offsetDist));
+          portalGroup.add(post1);
+
+          const post2 = new THREE.Mesh(postGeo, postMat);
+          post2.position.set(x + (isWideX ? offsetDist : 0), yBottom / 2, z + (isWideX ? 0 : offsetDist));
+          portalGroup.add(post2);
+
+          // 3. Luminous underpass chevron/arrow light on the bottom edge
+          const archLineGeo = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(x + (isWideX ? -offsetDist : 0), yBottom, z + (isWideX ? 0 : -offsetDist)),
+            new THREE.Vector3(x + (isWideX ? offsetDist : 0), yBottom, z + (isWideX ? 0 : offsetDist))
+          ]);
+          const archLine = new THREE.Line(archLineGeo, new THREE.LineBasicMaterial({
+            color: 0x38bdf8,
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.95
+          }));
+          portalGroup.add(archLine);
+
+          scene.add(portalGroup);
+          underpassPortals.push(portalGroup);
+        }
+      }
+
+      // Physics obstacle descriptor (1m x 1m x 0.25m chamber)
+      const minX = x - width / 2;
+      const maxX = x + width / 2;
+      const minZ = z - length / 2;
+      const maxZ = z + length / 2;
+
+      obstacles.push({
+        mesh,
+        x, z, width, length,
+        yBottom, yTop, height,
+        openType,
+        isPerimeter,
+        label,
+        bbox: new THREE.Box3(new THREE.Vector3(minX, yBottom, minZ), new THREE.Vector3(maxX, yTop, maxZ))
+      });
+    }
+
+    
+    // =========================================================================
+    // 통로 장애물: 기둥 (Pillar) & 움직이는 풍선 (Moving Balloon) 생성기
+    // =========================================================================
+    function createHazardStripedTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 128;
+      canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#f59e0b'; // Amber yellow
+      ctx.fillRect(0, 0, 128, 128);
+      ctx.fillStyle = '#0f172a'; // Slate black
+      for (let i = -128; i < 256; i += 32) {
+        ctx.beginPath();
+        ctx.moveTo(i, 0);
+        ctx.lineTo(i + 16, 0);
+        ctx.lineTo(i + 16 + 128, 128);
+        ctx.lineTo(i + 128, 128);
+        ctx.closePath();
+        ctx.fill();
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(1, 4);
+      return tex;
+    }
+
+    const hazardStripedTex = createHazardStripedTexture();
+
+    function clearDynamicHazards() {
+      dynamicHazards.forEach(h => {
+        if (h.mesh) {
+          scene.remove(h.mesh);
+          h.mesh.traverse(child => {
+            if (child.geometry) child.geometry.dispose();
+            if (child.material) {
+              if (Array.isArray(child.material)) child.material.forEach(m => m.dispose());
+              else child.material.dispose();
+            }
+          });
+        }
+      });
+      dynamicHazards = [];
+    }
+
+    function createPillarHazard(x, z) {
+      const group = new THREE.Group();
+      const radius = 0.0075; // 0.75cm (지름 1.5cm) 슬림형 소형 기둥 반경
+      const height = CHAMBER_HEIGHT; // 20cm 높이
+
+      // 1. 기둥 바디 (안전 경고 스트라이프)
+      const pillarGeo = new THREE.CylinderGeometry(radius, radius, height, 16);
+      const pillarMat = new THREE.MeshStandardMaterial({
+        map: hazardStripedTex,
+        roughness: 0.35,
+        metalness: 0.15
+      });
+      const pillarMesh = new THREE.Mesh(pillarGeo, pillarMat);
+      pillarMesh.position.y = height / 2;
+      pillarMesh.castShadow = true;
+      group.add(pillarMesh);
+
+      // 2. 기둥 상단 발광 경고 비콘 (LED)
+      const beaconGeo = new THREE.SphereGeometry(radius * 1.18, 12, 10);
+      const beaconMat = new THREE.MeshStandardMaterial({
+        color: 0xef4444,
+        emissive: 0xdc2626,
+        emissiveIntensity: 0.75,
+        roughness: 0.2
+      });
+      const beacon = new THREE.Mesh(beaconGeo, beaconMat);
+      beacon.position.y = height + 0.002;
+      group.add(beacon);
+
+      // 3. 기둥 바닥 지지 링
+      const baseGeo = new THREE.CylinderGeometry(radius * 1.4, radius * 1.5, 0.003, 16);
+      const baseMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+      const baseMesh = new THREE.Mesh(baseGeo, baseMat);
+      baseMesh.position.y = 0.0015;
+      group.add(baseMesh);
+
+      group.position.set(x, 0, z);
+      scene.add(group);
+
+      return {
+        type: 'pillar',
+        x, z,
+        baseX: x, baseZ: z,
+        radius,
+        yBottom: 0,
+        yTop: height,
+        mesh: group,
+        label: '소형 경고 기둥'
+      };
+    }
+
+    function createBalloonHazard(x, z, moveAxis = 'x', moveRange = 0.055, speed = 1.0) {
+      const group = new THREE.Group();
+      const radius = 0.011; // 1.1cm (지름 2.2cm) 소형 순찰 풍선 반경
+      const baseY = 0.038 + Math.random() * 0.045; // 3.8cm ~ 8.3cm 고도 부유
+
+      const balloonColors = [0xef4444, 0x10b981, 0xa855f7, 0xf59e0b, 0x06b6d4];
+      const col = balloonColors[Math.floor(Math.random() * balloonColors.length)];
+
+      // 1. 풍선 구체 메쉬
+      const balloonGeo = new THREE.SphereGeometry(radius, 18, 14);
+      balloonGeo.scale(0.92, 1.12, 0.92);
+      const balloonMat = new THREE.MeshPhysicalMaterial({
+        color: col,
+        roughness: 0.12,
+        clearcoat: 0.85,
+        clearcoatRoughness: 0.1,
+        transparent: true,
+        opacity: 0.92
+      });
+      const balloonMesh = new THREE.Mesh(balloonGeo, balloonMat);
+      balloonMesh.castShadow = true;
+      group.add(balloonMesh);
+
+      // 2. 풍선 매듭 꼬리
+      const knotGeo = new THREE.ConeGeometry(0.0025, 0.004, 8);
+      const knotMat = new THREE.MeshStandardMaterial({ color: col, roughness: 0.4 });
+      const knot = new THREE.Mesh(knotGeo, knotMat);
+      knot.position.y = -radius * 1.12;
+      group.add(knot);
+
+      // 3. 바닥 연결 안내줄 (Tether String)
+      const stringGeo = new THREE.BufferGeometry();
+      const stringPos = new Float32Array([0, -radius * 1.12, 0,  0, -baseY, 0]);
+      stringGeo.setAttribute('position', new THREE.BufferAttribute(stringPos, 3));
+      const stringMat = new THREE.LineBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.45 });
+      const stringLine = new THREE.Line(stringGeo, stringMat);
+      group.add(stringLine);
+
+      // 4. 풍선 바닥 타겟팅 섀도우
+      const bShadowGeo = new THREE.CircleGeometry(radius * 0.72, 14);
+      bShadowGeo.rotateX(-Math.PI / 2);
+      const bShadow = new THREE.Mesh(bShadowGeo, new THREE.MeshBasicMaterial({ color: 0x020617, transparent: true, opacity: 0.38 }));
+      bShadow.position.y = 0.0015 - baseY;
+      group.add(bShadow);
+
+      group.position.set(x, baseY, z);
+      scene.add(group);
+
+      return {
+        type: 'balloon',
+        x, y: baseY, z,
+        baseX: x, baseY, baseZ: z,
+        radius,
+        moveAxis,
+        moveRange,
+        speed,
+        phase: Math.random() * Math.PI * 2,
+        squishTimer: 0.0,
+        mesh: group,
+        balloonMesh,
+        bShadow,
+        stringGeo,
+        label: '소형 순찰 풍선'
+      };
+    }
+
+    // 5단계 미로별 통로 장애물 스폰 후보 풀 (각 미로의 실제 통로 내부에 10~14개 후보 좌표 보유)
+    const SCENARIO_HAZARD_POOLS = {
+      multi_level_3d: [
+        { x: -0.11, z: -0.31, axis: 'x', range: 0.05, speed: 1.0 },
+        { x:  0.11, z: -0.31, axis: 'x', range: 0.05, speed: 0.9 },
+        { x: -0.14, z: -0.10, axis: 'x', range: 0.05, speed: 1.1 },
+        { x:  0.14, z: -0.10, axis: 'x', range: 0.05, speed: 1.0 },
+        { x:  0.00, z: -0.09, axis: 'x', range: 0.06, speed: 1.2 },
+        { x: -0.16, z:  0.10, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.16, z:  0.10, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.00, z:  0.11, axis: 'x', range: 0.06, speed: 1.1 },
+        { x: -0.12, z:  0.32, axis: 'x', range: 0.05, speed: 0.9 },
+        { x:  0.12, z:  0.32, axis: 'x', range: 0.05, speed: 1.1 }
+      ],
+      zigzag_labyrinth: [
+        { x: -0.15, z: -0.35, axis: 'z', range: 0.04, speed: 1.0 },
+        { x:  0.12, z: -0.35, axis: 'x', range: 0.05, speed: 1.1 },
+        { x:  0.34, z: -0.22, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.12, z: -0.12, axis: 'z', range: 0.04, speed: 1.2 },
+        { x: -0.12, z: -0.12, axis: 'z', range: 0.04, speed: 0.9 },
+        { x: -0.34, z:  0.00, axis: 'z', range: 0.05, speed: 1.1 },
+        { x: -0.12, z:  0.12, axis: 'z', range: 0.04, speed: 1.0 },
+        { x:  0.12, z:  0.12, axis: 'z', range: 0.04, speed: 1.1 },
+        { x:  0.34, z:  0.22, axis: 'z', range: 0.05, speed: 0.9 },
+        { x:  0.05, z:  0.35, axis: 'x', range: 0.05, speed: 1.0 },
+        { x: -0.18, z:  0.35, axis: 'x', range: 0.05, speed: 1.1 }
+      ],
+      grid_matrix: [
+        { x: -0.18, z: -0.36, axis: 'x', range: 0.04, speed: 1.0 },
+        { x:  0.18, z: -0.36, axis: 'x', range: 0.04, speed: 1.1 },
+        { x: -0.36, z: -0.18, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.00, z: -0.18, axis: 'x', range: 0.05, speed: 1.2 },
+        { x:  0.36, z: -0.18, axis: 'z', range: 0.05, speed: 0.9 },
+        { x: -0.18, z:  0.00, axis: 'z', range: 0.05, speed: 1.1 },
+        { x:  0.18, z:  0.00, axis: 'z', range: 0.05, speed: 1.1 },
+        { x: -0.36, z:  0.18, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.00, z:  0.18, axis: 'x', range: 0.05, speed: 1.2 },
+        { x:  0.36, z:  0.18, axis: 'z', range: 0.05, speed: 0.9 },
+        { x: -0.15, z:  0.36, axis: 'x', range: 0.04, speed: 1.0 },
+        { x:  0.15, z:  0.36, axis: 'x', range: 0.04, speed: 1.0 }
+      ],
+      spiral_ascent: [
+        { x: -0.20, z: -0.41, axis: 'x', range: 0.05, speed: 1.0 },
+        { x:  0.18, z: -0.41, axis: 'x', range: 0.05, speed: 1.1 },
+        { x:  0.41, z: -0.15, axis: 'z', range: 0.05, speed: 1.0 },
+        { x:  0.41, z:  0.20, axis: 'z', range: 0.05, speed: 1.2 },
+        { x:  0.15, z:  0.41, axis: 'x', range: 0.05, speed: 0.9 },
+        { x: -0.20, z:  0.41, axis: 'x', range: 0.05, speed: 1.1 },
+        { x: -0.41, z:  0.12, axis: 'z', range: 0.05, speed: 1.0 },
+        { x: -0.12, z: -0.25, axis: 'x', range: 0.04, speed: 1.1 },
+        { x:  0.25, z: -0.05, axis: 'z', range: 0.04, speed: 1.0 },
+        { x:  0.05, z:  0.25, axis: 'x', range: 0.04, speed: 1.2 },
+        { x: -0.24, z:  0.05, axis: 'z', range: 0.04, speed: 0.9 },
+        { x: -0.05, z: -0.08, axis: 'x', range: 0.03, speed: 1.1 }
+      ],
+      extreme_championship: [
+        { x: -0.22, z: -0.42, axis: 'x', range: 0.04, speed: 1.1 },
+        { x:  0.10, z: -0.42, axis: 'x', range: 0.04, speed: 1.0 },
+        { x:  0.41, z: -0.33, axis: 'z', range: 0.04, speed: 1.2 },
+        { x:  0.15, z: -0.25, axis: 'x', range: 0.04, speed: 1.0 },
+        { x: -0.18, z: -0.25, axis: 'x', range: 0.04, speed: 1.1 },
+        { x: -0.41, z: -0.16, axis: 'z', range: 0.04, speed: 0.9 },
+        { x: -0.15, z: -0.08, axis: 'x', range: 0.04, speed: 1.2 },
+        { x:  0.20, z: -0.08, axis: 'x', range: 0.04, speed: 1.1 },
+        { x:  0.41, z:  0.01, axis: 'z', range: 0.04, speed: 1.0 },
+        { x:  0.15, z:  0.09, axis: 'x', range: 0.04, speed: 1.2 },
+        { x: -0.20, z:  0.09, axis: 'x', range: 0.04, speed: 1.0 },
+        { x: -0.41, z:  0.18, axis: 'z', range: 0.04, speed: 1.1 },
+        { x: -0.10, z:  0.26, axis: 'x', range: 0.04, speed: 0.9 },
+        { x:  0.24, z:  0.26, axis: 'x', range: 0.04, speed: 1.2 },
+        { x:  0.08, z:  0.42, axis: 'x', range: 0.04, speed: 1.1 }
+      ]
+    };
+
+    // 미로 단계별 장애물 개수 (5개 ~ 10개 점진 증가)
+    const SCENARIO_HAZARD_COUNTS = {
+      multi_level_3d:       [5, 6],
+      zigzag_labyrinth:     [6, 7],
+      grid_matrix:          [7, 8],
+      spiral_ascent:        [8, 9],
+      extreme_championship: [9, 10]
+    };
+
+    function spawnRandomHazards(scenarioType) {
+      clearDynamicHazards();
+
+      const pool = SCENARIO_HAZARD_POOLS[scenarioType] || SCENARIO_HAZARD_POOLS['multi_level_3d'];
+      const [minC, maxC] = SCENARIO_HAZARD_COUNTS[scenarioType] || [5, 8];
+      const count = Math.min(pool.length, minC + Math.floor(Math.random() * (maxC - minC + 1)));
+
+      const shuffled = [...pool].sort(() => 0.5 - Math.random());
+      const selected = shuffled.slice(0, count);
+
+      selected.forEach((pt, idx) => {
+        const isBalloon = idx % 2 === 0;
+        if (isBalloon) {
+          const hazard = createBalloonHazard(pt.x, pt.z, pt.axis, pt.range, pt.speed);
+          dynamicHazards.push(hazard);
+        } else {
+          const hazard = createPillarHazard(pt.x, pt.z);
+          dynamicHazards.push(hazard);
+        }
+      });
+
+      const countEl = document.getElementById('telemetry-hazards-count');
+      if (countEl) countEl.textContent = `소형 기둥/풍선 ${dynamicHazards.length}개`;
+    }
+
+    function updateDynamicHazards(dt) {
+      for (let i = 0; i < dynamicHazards.length; i++) {
+        const h = dynamicHazards[i];
+        if (h.type === 'balloon') {
+          const offset = Math.sin(simulationTime * h.speed + h.phase) * h.moveRange;
+          let proposedX = h.baseX + (h.moveAxis === 'x' ? offset : 0);
+          let proposedZ = h.baseZ + (h.moveAxis === 'z' ? offset : 0);
+
+          const hRadius = h.radius + 0.008;
+          let collidesWall = false;
+
+          for (let j = 0; j < obstacles.length; j++) {
+            const obs = obstacles[j];
+            if (h.y >= obs.yBottom - 0.015 && h.y <= obs.yTop + 0.015) {
+              const minX = obs.x - obs.width / 2 - hRadius;
+              const maxX = obs.x + obs.width / 2 + hRadius;
+              const minZ = obs.z - obs.length / 2 - hRadius;
+              const maxZ = obs.z + obs.length / 2 + hRadius;
+
+              if (proposedX > minX && proposedX < maxX && proposedZ > minZ && proposedZ < maxZ) {
+                collidesWall = true;
+                break;
+              }
+            }
+          }
+
+          const arenaLimit = HALF_ARENA - currentWallThickness - hRadius;
+          if (Math.abs(proposedX) > arenaLimit || Math.abs(proposedZ) > arenaLimit) {
+            collidesWall = true;
+          }
+
+          if (!collidesWall) {
+            h.x = proposedX;
+            h.z = proposedZ;
+          } else {
+            h.speed = -h.speed;
+          }
+
+          h.y = h.baseY + Math.sin(simulationTime * 2.4 + h.phase) * 0.005;
+          h.mesh.position.set(h.x, h.y, h.z);
+
+          if (h.bShadow) h.bShadow.position.y = 0.0015 - h.y;
+
+          if (h.squishTimer > 0) {
+            h.squishTimer -= dt;
+            const s = Math.sin(h.squishTimer * 28) * 0.35;
+            h.balloonMesh.scale.set(1 + s, 1 - s, 1 + s);
+          } else {
+            h.balloonMesh.scale.set(1, 1, 1);
+          }
+        }
+      }
+    }
+
+    function loadScenario(type) {
+      clearObstacles();
+      clearTrail();
+      currentScenario = type;
+
+      // 미로 복잡도가 올라갈수록 벽 두께가 점진적으로 얇아짐! (2.0cm -> 1.6cm -> 1.2cm -> 0.9cm -> 0.6cm)
+      const STAGE_WALL_THICKNESS = {
+        multi_level_3d:       0.020, // 1단계: 2.0cm (기본)
+        zigzag_labyrinth:     0.016, // 2단계: 1.6cm
+        grid_matrix:          0.012, // 3단계: 1.2cm
+        spiral_ascent:        0.009, // 4단계: 0.9cm
+        extreme_championship: 0.006  // 5단계: 0.6cm (6mm 초정밀 실제 미로 격벽)
+      };
+
+      const W = STAGE_WALL_THICKNESS[type] || 0.020;
+      currentWallThickness = W;
+      const H = CHAMBER_HEIGHT; // 20cm (0.20m)
+
+      // 4 외곽 사방 경계벽
+      addWall(0, -HALF_ARENA + W/2, ARENA_SIZE, W, 0, H, 'full', '북측 사방벽', true);
+      addWall(0, HALF_ARENA - W/2, ARENA_SIZE, W, 0, H, 'full', '남측 사방벽', true);
+      addWall(-HALF_ARENA + W/2, 0, W, ARENA_SIZE, 0, H, 'full', '서측 사방벽', true);
+      addWall(HALF_ARENA - W/2, 0, W, ARENA_SIZE, 0, H, 'full', '동측 사방벽', true);
+
+      // =======================================================================
+      // 5단계 점진적 복잡도 미로 설계 (1단계 기본 -> 5단계 실제 복잡 라비린스 미로)
+      // =======================================================================
+      if (type === 'multi_level_3d') {
+        // [1단계: 기본 3D 복합 미로] 벽두께 2.0cm · 장애물 5~6개
+        agent.x = 0.0; agent.z = -0.40;
+        goal.x = 0.0; goal.z = 0.40;
+
+        addWall(-0.25, -0.15, W, 0.46, 0, H, 'full', '서측 복도벽');
+        addWall(0.25, -0.15, W, 0.46, 0, H, 'full', '동측 복도벽');
+        addWall(0.0, -0.20, 0.48, W, 0, 0.06, 'open_top', '6cm 1차 도약턱 (위로 통과)');
+        addWall(0.0, 0.0, 0.48, W, 0.06, H, 'open_bottom', '6cm 하단 런웨이 게이트 (저공 통과)');
+        addWall(-0.36, 0.12, 0.22, W, 0, H, 'full', '서측 차단벽');
+        addWall(0.36, 0.12, 0.22, W, 0, H, 'full', '동측 차단벽');
+        addWall(0.0, 0.22, 0.48, W, 0, 0.07, 'open_top', '7cm 2차 도약턱 (위로 통과)');
+
+        currentWaypoints = [
+          { x: 0.0, z: -0.15 },
+          { x: 0.0, z: 0.05 },
+          { x: 0.0, z: 0.26 },
+          { x: goal.x, z: goal.z }
+        ];
+
+      } else if (type === 'zigzag_labyrinth') {
+        // [2단계: 다단 지그재그 미로] 벽두께 1.6cm · 장애물 6~7개
+        agent.x = -0.35; agent.z = -0.41;
+        goal.x = 0.35; goal.z = 0.41;
+
+        // 4단 지그재그 메인 격벽 + 측면 포켓 격벽
+        addWall(-0.12, -0.24, 0.72, W, 0, H, 'full', '1단 지그재그 격벽');
+        addWall(0.12,  0.00, 0.72, W, 0, H, 'full', '2단 지그재그 격벽');
+        addWall(-0.12,  0.24, 0.72, W, 0, H, 'full', '3단 지그재그 격벽');
+
+        // 미로 내부 분기 차단턱 & 상하 복합 관문
+        addWall(0.05, -0.36, W, 0.22, 0, 0.055, 'open_top', '5.5cm 1단 도약턱');
+        addWall(0.35, -0.12, 0.24, W, 0, 0.06, 'open_top', '6cm 동측 회전 도약턱');
+        addWall(0.0,  -0.12, W, 0.22, 0.06, H, 'open_bottom', '6cm 중앙 하단 게이트');
+        addWall(-0.35, 0.12, 0.24, W, 0, 0.065, 'open_top', '6.5cm 서측 회전 도약턱');
+        addWall(0.05,  0.36, W, 0.22, 0.06, H, 'open_bottom', '6cm 최종 하단 런웨이');
+
+        currentWaypoints = [
+          { x: 0.34, z: -0.35 },
+          { x: 0.34, z: -0.12 },
+          { x: -0.34, z: -0.12 },
+          { x: -0.34, z: 0.12 },
+          { x: 0.34, z: 0.12 },
+          { x: 0.34, z: 0.35 },
+          { x: goal.x, z: goal.z }
+        ];
+
+      } else if (type === 'grid_matrix') {
+        // [3단계: 다중 격자 교차 미로] 벽두께 1.2cm · 장애물 7~8개
+        agent.x = -0.38; agent.z = -0.40;
+        goal.x = 0.38; goal.z = 0.40;
+
+        // 수직 격자 벽체 (다중 챔버 형성)
+        addWall(-0.24, -0.22, W, 0.52, 0, H, 'full', '좌북 수직 격벽');
+        addWall(0.0,   -0.10, W, 0.56, 0, H, 'full', '중앙 수직 격벽');
+        addWall(0.24,   0.22, W, 0.52, 0, H, 'full', '우남 수직 격벽');
+
+        // 수평 교차 격벽 및 막다른 포켓 벽
+        addWall(-0.36,  0.16, 0.24, W, 0, H, 'full', '좌측 차단 격벽');
+        addWall(-0.12,  0.28, 0.24, W, 0, H, 'full', '중앙남단 격벽');
+        addWall(0.24,  -0.28, 0.48, W, 0, H, 'full', '우북 수평 격벽');
+        addWall(0.36,   0.00, 0.24, W, 0, H, 'full', '우측 중앙 격벽');
+
+        // 격자 통로 사이 상하 도약턱 & 런웨이 게이트
+        addWall(-0.36, -0.15, 0.22, W, 0, 0.06, 'open_top', '6cm 좌측 통로 도약턱');
+        addWall(-0.12,  0.04, 0.22, W, 0.06, H, 'open_bottom', '6cm 중앙 런웨이 게이트');
+        addWall(0.12,  -0.15, 0.22, W, 0, 0.065, 'open_top', '6.5cm 우북 도약턱');
+        addWall(0.12,   0.18, 0.22, W, 0.06, H, 'open_bottom', '6cm 우남 하단 게이트');
+        addWall(0.36,   0.22, 0.22, W, 0, 0.07, 'open_top', '7cm 최종 도약 관문');
+
+        currentWaypoints = [
+          { x: -0.36, z: -0.02 },
+          { x: -0.12, z: -0.02 },
+          { x: -0.12, z: -0.38 },
+          { x: 0.12, z: -0.38 },
+          { x: 0.12, z: 0.36 },
+          { x: 0.36, z: 0.36 },
+          { x: goal.x, z: goal.z }
+        ];
+
+      } else if (type === 'spiral_ascent') {
+        // [4단계: 3중 스파이럴 라비린스 미로] 벽두께 0.9cm · 장애물 8~9개
+        agent.x = -0.41; agent.z = -0.41;
+        goal.x = 0.0; goal.z = 0.0; // 미로 심장부 중앙 골인지
+
+        // 1차 외곽 링 격벽 (두께 0.9cm)
+        addWall(-0.04, -0.32, 0.80, W, 0, H, 'full', '외곽 북단 나선벽');
+        addWall(0.32,   0.02, W, 0.68, 0, H, 'full', '외곽 동단 나선벽');
+        addWall(0.02,   0.32, 0.62, W, 0, H, 'full', '외곽 남단 나선벽');
+        addWall(-0.28,  0.06, W, 0.52, 0, H, 'full', '외곽 서단 나선벽');
+
+        // 2차 내부 링 격벽
+        addWall(-0.02, -0.16, 0.52, W, 0, H, 'full', '내부 북단 나선벽');
+        addWall(0.16,   0.02, W, 0.36, 0, H, 'full', '내부 동단 나선벽');
+        addWall(0.02,   0.16, 0.30, W, 0, H, 'full', '내부 남단 나선벽');
+        addWall(-0.12,  0.04, W, 0.22, 0, H, 'full', '내부 서단 코어벽');
+
+        // 나선 회랑 곳곳의 도약턱 & 하단 게이트
+        addWall(0.10,  -0.41, W, 0.16, 0, 0.055, 'open_top', '5.5cm 북측 회랑 도약턱');
+        addWall(0.41,   0.05, 0.16, W, 0.06, H, 'open_bottom', '6cm 동측 회랑 하단 게이트');
+        addWall(-0.05,  0.41, W, 0.16, 0, 0.065, 'open_top', '6.5cm 남측 회랑 도약턱');
+        addWall(-0.05, -0.24, W, 0.14, 0.06, H, 'open_bottom', '6cm 내부 회랑 런웨이');
+        addWall(0.24,   0.00, 0.14, W, 0, 0.07, 'open_top', '7cm 코어 진입 도약턱');
+        addWall(-0.02, -0.07, 0.18, W, 0, 0.075, 'open_top', '7.5cm 최종 코어 관문');
+
+        currentWaypoints = [
+          { x: 0.41, z: -0.41 },
+          { x: 0.41, z: 0.41 },
+          { x: -0.38, z: 0.41 },
+          { x: -0.38, z: -0.24 },
+          { x: 0.24, z: -0.24 },
+          { x: 0.24, z: 0.24 },
+          { x: -0.20, z: 0.24 },
+          { x: -0.20, z: -0.08 },
+          { x: 0.05, z: -0.08 },
+          { x: goal.x, z: goal.z }
+        ];
+
+      } else if (type === 'extreme_championship') {
+        // [5단계: 실제 복잡 라비린스 미로 (Master Real Maze)]
+        // 벽두께 0.6cm (6mm 슬림 격벽) · 18개 다중 미로 벽 + 소형 장애물 9~10개!
+        agent.x = -0.42; agent.z = -0.42;
+        goal.x = 0.42; goal.z = 0.42;
+
+        // 5단 수평 미로 격벽 + 막다른 분기 포켓 (실제 미로 구조)
+        addWall(-0.08, -0.34, 0.78, W, 0, H, 'full', '1단 미로 주격벽');
+        addWall(-0.18, -0.17, 0.36, W, 0, H, 'full', '2단 좌측 미로벽');
+        addWall(0.26,  -0.17, 0.24, W, 0, H, 'full', '2단 우측 미로벽');
+        addWall(-0.26,  0.00, 0.24, W, 0, H, 'full', '3단 좌측 미로벽');
+        addWall(0.18,   0.00, 0.36, W, 0, H, 'full', '3단 우측 미로벽');
+        addWall(-0.10,  0.17, 0.52, W, 0, H, 'full', '4단 중앙 미로벽');
+        addWall(0.08,   0.34, 0.78, W, 0, H, 'full', '5단 남단 미로 주격벽');
+
+        // 수직 교차 미로 칸막이 (다중 꺾임 및 포켓 형성)
+        addWall(0.32,  -0.25, W, 0.17, 0, H, 'full', '북동 코너 수직벽');
+        addWall(0.00,  -0.25, W, 0.17, 0, H, 'full', '북중앙 분기 수직벽');
+        addWall(-0.34, -0.08, W, 0.17, 0, H, 'full', '서북 코너 수직벽');
+        addWall(-0.08, -0.08, W, 0.17, 0, H, 'full', '중앙북 포켓 수직벽');
+        addWall(0.00,   0.08, W, 0.17, 0, H, 'full', '중앙남 분기 수직벽');
+        addWall(0.34,   0.08, W, 0.17, 0, H, 'full', '동남 코너 수직벽');
+        addWall(-0.34,  0.25, W, 0.17, 0, H, 'full', '남서 포켓 수직벽');
+        addWall(0.16,   0.25, W, 0.17, 0, H, 'full', '남동 유도 수직벽');
+
+        // 미로 회랑 사이 입체 도약턱 & 하단 런웨이 게이트
+        addWall(-0.08, -0.42, W, 0.15, 0, 0.055, 'open_top', '5.5cm 1차 미로 도약턱');
+        addWall(0.16,  -0.25, W, 0.15, 0.06, H, 'open_bottom', '6cm 2차 하단 런웨이');
+        addWall(-0.22, -0.08, W, 0.15, 0, 0.065, 'open_top', '6.5cm 3차 미로 도약턱');
+        addWall(0.18,   0.08, W, 0.15, 0.06, H, 'open_bottom', '6cm 4차 하단 런웨이');
+        addWall(-0.08,  0.25, W, 0.15, 0, 0.07, 'open_top', '7cm 5차 미로 도약턱');
+        addWall(0.15,   0.42, W, 0.15, 0, 0.075, 'open_top', '7.5cm 최종 미로 관문');
+
+        currentWaypoints = [
+          { x: 0.41, z: -0.42 },
+          { x: 0.41, z: -0.25 },
+          { x: 0.08, z: -0.25 },
+          { x: 0.08, z: -0.08 },
+          { x: -0.26, z: -0.08 },
+          { x: -0.26, z: 0.08 },
+          { x: 0.41, z: 0.08 },
+          { x: 0.41, z: 0.25 },
+          { x: -0.41, z: 0.25 },
+          { x: -0.41, z: 0.42 },
+          { x: goal.x, z: goal.z }
+        ];
+      }
+
+      if (goalGroup) goalGroup.position.set(goal.x, goal.y, goal.z);
+
+      // 미로 단계에 맞춰 소형 기둥 및 순찰 풍선 (5~10개) 자동 배치
+      spawnRandomHazards(type);
+
+      resetAgent();
+    }
+
+    function resetAgent() {
+      agent.y = LOW_CRUISE_HEIGHT;
+      agent.targetY = LOW_CRUISE_HEIGHT;
+      agent.targetObstacle = null;
+      agent.waypointIdx = 0;
+      agent.bumpTimer = 0;
+      agent.recoilVel = 0;
+      agent.wobbleRoll = 0;
+      agent.wobblePitch = 0;
+      agent.rotateEvadeTimer = 0;
+      currentState = STATES.CRUISE;
+
+      const firstTarget = (currentWaypoints && currentWaypoints.length > 0) ? currentWaypoints[0] : goal;
+      const dx = firstTarget.x - agent.x, dz = firstTarget.z - agent.z;
+      agent.heading = Math.atan2(dx, dz);
+      agent.targetHeading = agent.heading;
+
+      applyEyeAppearance(customConfig.eyeStyle === 'blackout');
+
+      if (beeMasterGroup) {
+        beeMasterGroup.position.set(agent.x, agent.y, agent.z);
+        beeMasterGroup.rotation.y = agent.heading;
+      }
+      clearTrail();
+      updateStatusBadge();
+    }
+    // =========================================================================
+    // 4. SENSING RADIUS RADAR (Smooth Translucent Aura, Non-mesh)
+    // =========================================================================
+    function updateSensingRadar() {
+      let minFront = 1.0;
+      let minLeft = 1.0;
+      let minRight = 1.0;
+      let minUp = 1.0;
+      let minDown = 1.0;
+      let closestObs = null;
+
+      const bx = agent.x;
+      const by = agent.y;
+      const bz = agent.z;
+
+      for (let i = 0; i < obstacles.length; i++) {
+        const obs = obstacles[i];
+
+        const nearestX = Math.max(obs.x - obs.width/2, Math.min(bx, obs.x + obs.width/2));
+        const nearestZ = Math.max(obs.z - obs.length/2, Math.min(bz, obs.z + obs.length/2));
+        const dx = nearestX - bx;
+        const dz = nearestZ - bz;
+        const horizDist = Math.hypot(dx, dz);
+
+        // 개방 벽체는 높이와 상관없이 전방 거리 내에 있으면 감지
+        const isOpenWall = (obs.openType === 'open_top' || obs.openType === 'open_bottom');
+        const vertOverlap = isOpenWall || (by >= obs.yBottom - 0.015 && by <= obs.yTop + 0.015);
+
+        if (horizDist < SENSING_RADIUS) {
+          const angleToObs = Math.atan2(dx, dz);
+          let relAngle = angleToObs - agent.heading;
+          while (relAngle > Math.PI) relAngle -= Math.PI * 2;
+          while (relAngle < -Math.PI) relAngle += Math.PI * 2;
+
+          if (vertOverlap) {
+            if (Math.abs(relAngle) < 0.8) {
+              if (horizDist < minFront) {
+                minFront = horizDist;
+                closestObs = obs;
+              }
+            } else if (relAngle < -0.8 && relAngle > -2.4) {
+              if (horizDist < minLeft) minLeft = horizDist;
+            } else if (relAngle > 0.8 && relAngle < 2.4) {
+              if (horizDist < minRight) minRight = horizDist;
+            }
+          }
+        }
+      }
+
+      // 통로 기둥 및 풍선 장애물 레이더 감지
+      for (let i = 0; i < dynamicHazards.length; i++) {
+        const h = dynamicHazards[i];
+        const dx = h.x - bx;
+        const dz = h.z - bz;
+        const dist = Math.hypot(dx, dz);
+
+        if (dist < SENSING_RADIUS) {
+          const angleToH = Math.atan2(dx, dz);
+          let relAngle = angleToH - agent.heading;
+          while (relAngle > Math.PI) relAngle -= Math.PI * 2;
+          while (relAngle < -Math.PI) relAngle += Math.PI * 2;
+
+          if (Math.abs(relAngle) < 0.8) {
+            if (dist < minFront) {
+              minFront = dist;
+              closestObs = { label: h.label, openType: h.type === 'balloon' ? 'open_bottom' : 'full', yBottom: 0, yTop: CHAMBER_HEIGHT };
+            }
+          } else if (relAngle < -0.8 && relAngle > -2.4) {
+            if (dist < minLeft) minLeft = dist;
+          } else if (relAngle > 0.8 && relAngle < 2.4) {
+            if (dist < minRight) minRight = dist;
+          }
+        }
+      }
+
+      sensors.front = minFront;
+      sensors.left = minLeft;
+      sensors.right = minRight;
+      sensors.down = minDown;
+      sensors.up = minUp;
+      sensors.closestObstacle = closestObs;
+
+      if (radarRadiusSphere && radarDiskMesh) {
+        if (minFront < 0.04) {
+          sensors.threatLevel = 'danger';
+          radarRadiusSphere.material.color.setHex(0xef4444);
+          radarDiskMesh.material.color.setHex(0xef4444);
+          radarRadiusSphere.material.opacity = 0.22;
+        } else if (minFront < 0.10) {
+          sensors.threatLevel = 'warning';
+          radarRadiusSphere.material.color.setHex(0xf59e0b);
+          radarDiskMesh.material.color.setHex(0xf59e0b);
+          radarRadiusSphere.material.opacity = 0.15;
+        } else {
+          sensors.threatLevel = 'clear';
+          radarRadiusSphere.material.color.setHex(0x38bdf8);
+          radarDiskMesh.material.color.setHex(0x38bdf8);
+          radarRadiusSphere.material.opacity = 0.09;
+        }
+
+        const pulse = 1.0 + Math.sin(simulationTime * 6) * 0.04;
+        radarRadiusSphere.scale.set(pulse, pulse, pulse);
+        radarDiskMesh.scale.set(pulse, pulse, pulse);
+      }
+    }
+
+    // =========================================================================
+    // 5. RULE-BASED STEERING, BUMP REACTION, ROTATE EVADE & 3D TRAVERSAL
+    // (Restored original motion logic + 50% reduced flap frequencies)
+    // =========================================================================
+    function stepRuleEngine(dt) {
+      const dxGoal = goal.x - agent.x;
+      const dzGoal = goal.z - agent.z;
+      const distToGoal = Math.sqrt(dxGoal * dxGoal + dzGoal * dzGoal);
+
+      // 미로 경로 웨이포인트 추적 (사전학습 RL 및 생체반사 엔진이 복잡한 미로 회랑을 따라 진행)
+      let navTarget = goal;
+      if (currentEngine !== ENGINES.UNTRAINED && currentWaypoints && currentWaypoints.length > 0) {
+        if (agent.waypointIdx === undefined) agent.waypointIdx = 0;
+        while (agent.waypointIdx < currentWaypoints.length - 1) {
+          const wp = currentWaypoints[agent.waypointIdx];
+          if (Math.hypot(wp.x - agent.x, wp.z - agent.z) < 0.065) {
+            agent.waypointIdx++;
+          } else {
+            break;
+          }
+        }
+        navTarget = currentWaypoints[Math.min(agent.waypointIdx, currentWaypoints.length - 1)];
+      }
+
+      const angleToGoal = Math.atan2(navTarget.x - agent.x, navTarget.z - agent.z);
+
+      if (distToGoal < 0.045 && agent.y <= LOW_CRUISE_HEIGHT + 0.015) {
+        if (currentState !== STATES.GOAL_REACHED) {
+          currentState = STATES.GOAL_REACHED;
+          updateStatusBadge();
+        }
+        return;
+      }
+
+      // Bump Recoil State
+      if (agent.bumpTimer > 0) {
+        agent.bumpTimer -= dt;
+        currentState = STATES.BUMP_REACTION;
+        agent.wingRate = 24.0 * customConfig.flapSpeed;
+
+        const wobbleFactor = Math.sin(agent.bumpTimer * 30) * Math.min(1.0, agent.bumpTimer * 4);
+        agent.wobbleRoll = wobbleFactor * 0.35;
+        agent.wobblePitch = -wobbleFactor * 0.25;
+
+        // 충돌 튕김 반동 물리 (Recoil Impulse)
+        agent.x += agent.recoilDirX * agent.recoilVel * dt;
+        agent.z += agent.recoilDirZ * agent.recoilVel * dt;
+        agent.recoilVel *= 0.82;
+
+        if (agent.bumpTimer <= 0) {
+          agent.bumpTimer = 0;
+          agent.wobbleRoll = 0;
+          agent.wobblePitch = 0;
+          agent.rotateEvadeTimer = 0.55;
+          const turnDir = sensors.left >= sensors.right ? -1 : 1;
+          agent.rotateEvadeTarget = agent.heading + turnDir * (Math.PI * 0.65);
+          currentState = STATES.ROTATE_EVADE;
+        }
+        updateStatusBadge();
+        return;
+      }
+
+      // Rotate Evade & Retry
+      if (agent.rotateEvadeTimer > 0) {
+        agent.rotateEvadeTimer -= dt;
+        currentState = STATES.ROTATE_EVADE;
+        agent.targetHeading = agent.rotateEvadeTarget;
+        agent.speed = 0.06;
+        agent.wingRate = 18.0 * customConfig.flapSpeed;
+
+        if (agent.rotateEvadeTimer <= 0) {
+          agent.rotateEvadeTimer = 0;
+          applyEyeAppearance(customConfig.eyeStyle === 'blackout');
+          currentState = STATES.CRUISE;
+        }
+        updateStatusBadge();
+      }
+
+      // =======================================================================
+      // ENGINE-SPECIFIC 3D FLIGHT LOGIC
+      // =======================================================================
+      if (currentEngine === ENGINES.UNTRAINED) {
+        // [1] 미학습 엔진 (Untrained / Random Walk):
+        // 잦은 헤맴, 지연된 회피(위협거리 0.055m), 도약턱 미인지 충돌
+        agent.speed = 0.085;
+        agent.wingRate = 16.0 * customConfig.flapSpeed;
+
+        // 무작위 브라운 노이즈 각도 흔들림
+        agent.targetHeading = angleToGoal + (Math.sin(simulationTime * 5.2) * 0.85 + (Math.random() - 0.5) * 1.2);
+
+        // 늦은 회피 반응 (벽 코앞 5.5cm에서야 반응)
+        if (sensors.front < 0.055) {
+          currentState = STATES.AVOID_STEER;
+          agent.targetHeading = agent.heading + (sensors.left > sensors.right ? -1.2 : 1.2);
+        } else {
+          currentState = STATES.CRUISE;
+        }
+
+      } else if (currentEngine === ENGINES.PRETRAINED_RL) {
+        // [3] 사전학습 완료 RL 엔진 (Pre-trained RL 100k):
+        // 19cm 전 원거리 선제 감지, 완만한 포물선 도약, 최적 베지에 슬라롬 주행, 충돌 0회!
+        agent.speed = 0.145;
+        agent.wingRate = 22.0 * customConfig.flapSpeed;
+
+        const obs = sensors.closestObstacle;
+
+        if (currentState === STATES.CLIMB_OVER) {
+          const targetAlt = obs ? Math.min(CHAMBER_HEIGHT - 0.025, obs.yTop + 0.038) : 0.11;
+          agent.targetY = targetAlt;
+          if (agent.y >= (obs ? obs.yTop + 0.015 : 0.09)) {
+            currentState = STATES.LEVEL_FLIGHT;
+            updateStatusBadge();
+          }
+        } else if (currentState === STATES.DIVE_UNDER) {
+          agent.targetY = LOW_CRUISE_HEIGHT;
+          if (agent.y <= LOW_CRUISE_HEIGHT + 0.005) {
+            currentState = STATES.LEVEL_FLIGHT;
+            updateStatusBadge();
+          }
+        } else if (currentState === STATES.LEVEL_FLIGHT) {
+          agent.targetHeading = angleToGoal;
+          let cleared = true;
+          if (agent.targetObstacle) {
+            const o = agent.targetObstacle;
+            const dist = Math.hypot(agent.x - o.x, agent.z - o.z);
+            if (dist < Math.max(o.width, o.length) / 2 + 0.04) cleared = false;
+          }
+          if (cleared) {
+            currentState = STATES.RETURN_CRUISE;
+            agent.targetY = LOW_CRUISE_HEIGHT;
+            agent.targetObstacle = null;
+            updateStatusBadge();
+          }
+        } else if (currentState === STATES.RETURN_CRUISE) {
+          agent.targetHeading = angleToGoal;
+          agent.targetY = LOW_CRUISE_HEIGHT;
+          if (agent.y <= LOW_CRUISE_HEIGHT + 0.004) {
+            agent.y = LOW_CRUISE_HEIGHT;
+            currentState = STATES.CRUISE;
+            updateStatusBadge();
+          }
+        } else {
+          // 선제적 18cm 장애물 탐지 & 도약 준비
+          if (sensors.front < 0.16 && obs) {
+            if (obs.openType === 'open_top' && obs.yTop <= 0.15) {
+              currentState = STATES.CLIMB_OVER;
+              agent.targetObstacle = obs;
+              agent.targetY = Math.min(CHAMBER_HEIGHT - 0.025, obs.yTop + 0.038);
+              updateStatusBadge();
+            } else if (obs.openType === 'open_bottom' && obs.yBottom >= 0.05) {
+              currentState = STATES.DIVE_UNDER;
+              agent.targetObstacle = obs;
+              agent.targetY = LOW_CRUISE_HEIGHT;
+              updateStatusBadge();
+            } else {
+              // 최적 탄젠트 회피
+              currentState = STATES.AVOID_STEER;
+              const steerDir = sensors.left > sensors.right ? -0.85 : 0.85;
+              agent.targetHeading = agent.heading + steerDir;
+              updateStatusBadge();
+            }
+          } else {
+            currentState = STATES.CRUISE;
+            // 코너 커팅 최적 곡선
+            let steer = angleToGoal;
+            if (sensors.left < 0.09) steer += 0.32;
+            if (sensors.right < 0.09) steer -= 0.32;
+            agent.targetHeading = steer;
+            updateStatusBadge();
+          }
+        }
+
+      } else {
+        // [2] 생체 반사 엔진 (Bio-Reflex / Braitenberg Optic Flow):
+        // 곤충의 본능적 광학류 비대칭 억제 및 반응적 도약
+        agent.speed = 0.12;
+        agent.wingRate = 18.0 * customConfig.flapSpeed;
+
+        if (currentState === STATES.CLIMB_OVER) {
+          const obs = agent.targetObstacle;
+          const targetAlt = obs ? Math.min(CHAMBER_HEIGHT - 0.025, obs.yTop + 0.035) : 0.10;
+          agent.targetY = targetAlt;
+
+          const requiredAlt = obs ? obs.yTop + 0.012 : 0.08;
+          if (agent.y < requiredAlt) {
+            agent.speed = 0.015;
+          } else {
+            agent.speed = 0.12;
+            currentState = STATES.LEVEL_FLIGHT;
+            updateStatusBadge();
+          }
+
+        } else if (currentState === STATES.DIVE_UNDER) {
+          agent.targetY = LOW_CRUISE_HEIGHT;
+          agent.speed = 0.09;
+          if (agent.y <= LOW_CRUISE_HEIGHT + 0.005) {
+            currentState = STATES.LEVEL_FLIGHT;
+            updateStatusBadge();
+          }
+
+        } else if (currentState === STATES.LEVEL_FLIGHT) {
+          agent.speed = 0.12;
+          agent.targetHeading = angleToGoal;
+          let cleared = true;
+          if (agent.targetObstacle) {
+            const obs = agent.targetObstacle;
+            if (obs.width >= obs.length) {
+              if (Math.abs(agent.z - obs.z) < obs.length / 2 + 0.035) cleared = false;
+            } else {
+              if (Math.abs(agent.x - obs.x) < obs.width / 2 + 0.035) cleared = false;
+            }
+          }
+          if (cleared) {
+            currentState = STATES.RETURN_CRUISE;
+            agent.targetY = LOW_CRUISE_HEIGHT;
+            agent.targetObstacle = null;
+            updateStatusBadge();
+          }
+
+        } else if (currentState === STATES.RETURN_CRUISE) {
+          agent.speed = 0.10;
+          agent.targetHeading = angleToGoal;
+          agent.targetY = LOW_CRUISE_HEIGHT;
+          if (agent.y <= LOW_CRUISE_HEIGHT + 0.003) {
+            agent.y = LOW_CRUISE_HEIGHT;
+            currentState = STATES.CRUISE;
+            updateStatusBadge();
+          }
+
+        } else if (currentState === STATES.CRUISE || currentState === STATES.AVOID_STEER) {
+          const obs = sensors.closestObstacle;
+          if (sensors.front < 0.11 && obs) {
+            if (obs.openType === 'open_top' && obs.yTop <= 0.15) {
+              currentState = STATES.CLIMB_OVER;
+              agent.targetObstacle = obs;
+              agent.targetY = Math.min(CHAMBER_HEIGHT - 0.03, obs.yTop + 0.030);
+              updateStatusBadge();
+            } else if (obs.openType === 'open_bottom' && obs.yBottom >= 0.05) {
+              currentState = STATES.DIVE_UNDER;
+              agent.targetObstacle = obs;
+              agent.targetY = LOW_CRUISE_HEIGHT;
+              updateStatusBadge();
+            } else {
+              currentState = STATES.AVOID_STEER;
+              agent.speed = 0.08;
+              const dir = sensors.left > sensors.right ? -0.75 : 0.75;
+              agent.targetHeading = agent.heading + dir;
+              updateStatusBadge();
+            }
+          } else {
+            currentState = STATES.CRUISE;
+            agent.speed = 0.12;
+            let steer = angleToGoal;
+            if (sensors.left < 0.08) steer += 0.28;
+            if (sensors.right < 0.08) steer -= 0.28;
+            agent.targetHeading = steer;
+            updateStatusBadge();
+          }
+        }
+      }
+
+      // Smooth Heading Interpolation
+      let angleDiff = agent.targetHeading - agent.heading;
+      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
+      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      const turnSpeed = (currentEngine === ENGINES.PRETRAINED_RL) ? 6.8 : agent.turnRate;
+      agent.heading += Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), turnSpeed * dt);
+
+      // Smooth Altitude Interpolation (Capped at 20cm ceiling)
+      const targetY = Math.min(CHAMBER_HEIGHT - 0.025, Math.max(LOW_CRUISE_HEIGHT, agent.targetY));
+      const vertSpeedFactor = (currentEngine === ENGINES.PRETRAINED_RL) ? 9.5 : 7.5;
+      agent.y += (targetY - agent.y) * Math.min(1.0, agent.verticalSpeed * dt * vertSpeedFactor);
+
+      const vx = Math.sin(agent.heading) * agent.speed * dt;
+      const vz = Math.cos(agent.heading) * agent.speed * dt;
+      const desiredX = agent.x + vx;
+      const desiredZ = agent.z + vz;
+
+      const col = resolve3DCollisionsWithImpact(agent.x, agent.z, desiredX, desiredZ, agent.y);
+      agent.x = col.x;
+      agent.z = col.z;
+
+      if (col.didBump && agent.bumpTimer <= 0 && agent.rotateEvadeTimer <= 0) {
+        agent.bumpTimer = 0.45;
+        agent.recoilVel = 0.16;
+        agent.recoilDirX = col.bumpNormalX || -Math.sin(agent.heading);
+        agent.recoilDirZ = col.bumpNormalZ || -Math.cos(agent.heading);
+        applyEyeAppearance(true);
+        triggerImpactRing(col.contactX, agent.y, col.contactZ);
+
+        // 충돌 횟수 카운터 증가 및 벤치마크 메트릭 반영
+        benchmarkStats[currentEngine].bumps++;
+        const bumpsEl = document.getElementById('metric-bumps');
+        if (bumpsEl) {
+          bumpsEl.textContent = `${benchmarkStats[currentEngine].bumps} 회`;
+          if (benchmarkStats[currentEngine].bumps > 0 && currentEngine === ENGINES.UNTRAINED) {
+            bumpsEl.className = 'font-mono font-bold text-red-400 text-xs animate-pulse';
+          }
+        }
+      }
+
+      // Wing Animation
+      if (customConfig.wingPose === 'idle') {
+        agent.wingFlapPhase += dt * (agent.wingRate * 2 * Math.PI);
+        const flapAngle = Math.sin(agent.wingFlapPhase) * 0.48;
+        if (wingPivotLeft && wingPivotRight) {
+          wingPivotLeft.rotation.x = -flapAngle;
+          wingPivotRight.rotation.x = flapAngle;
+          subWingPivotLeft.rotation.x = -flapAngle * 0.76;
+          subWingPivotRight.rotation.x = flapAngle * 0.76;
+        }
+      } else {
+        const poseRads = {
+          up: THREE.MathUtils.degToRad(45),
+          flat: THREE.MathUtils.degToRad(0),
+          down: THREE.MathUtils.degToRad(-35)
+        };
+        const rad = poseRads[customConfig.wingPose] || 0;
+        if (wingPivotLeft && wingPivotRight) {
+          wingPivotLeft.rotation.x = -rad;
+          wingPivotRight.rotation.x = rad;
+          subWingPivotLeft.rotation.x = -rad * 0.76;
+          subWingPivotRight.rotation.x = rad * 0.76;
+        }
+      }
+
+      // Update Bee Position & Hover Bobbing
+      if (beeMasterGroup) {
+        const hoverBob = Math.sin(simulationTime * 11) * 0.0010;
+        beeMasterGroup.position.set(agent.x, agent.y + hoverBob, agent.z);
+        beeMasterGroup.rotation.y = agent.heading;
+
+        if (beeDeformGroup) {
+          beeDeformGroup.rotation.z = agent.wobbleRoll;
+          beeDeformGroup.rotation.x = agent.wobblePitch;
+        }
+
+        if (dizzyStarsGroup && dizzyStarsGroup.visible) {
+          dizzyStarsGroup.rotation.y += dt * 12;
+        }
+
+        const groundShadow = beeMasterGroup.userData.groundShadow;
+        if (groundShadow) {
+          const { blob, reticle, tetherGeo } = groundShadow;
+          blob.position.set(agent.x, 0.0012, agent.z);
+          reticle.position.set(agent.x, 0.0016, agent.z);
+
+          const altRatio = Math.min(1.0, agent.y / CHAMBER_HEIGHT);
+          const shadowScale = 1.0 + altRatio * 0.75;
+          blob.scale.set(shadowScale, 1, shadowScale);
+          blob.material.opacity = Math.max(0.25, 0.68 - altRatio * 0.38);
+
+          const ringPulse = 1.0 + Math.sin(simulationTime * 5) * 0.08;
+          reticle.scale.set(ringPulse, 1, ringPulse);
+
+          const posAttr = tetherGeo.attributes.position;
+          posAttr.setXYZ(0, agent.x, 0.002, agent.z);
+          posAttr.setXYZ(1, agent.x, agent.y, agent.z);
+          posAttr.needsUpdate = true;
+        }
+      }
+
+      addTrailPoint(agent.x, agent.y, agent.z);
+
+      if (goalGlow) {
+        const pulse = 1.0 + Math.sin(simulationTime * 4) * 0.15;
+        goalGlow.scale.set(pulse, pulse, pulse);
+      }
+    }
+
+    // =========================================================================
+    // FLYMIND NEURAL CIRCUIT SIMULATION & REAL-TIME 2D CANVAS VISUALIZER
+    // =========================================================================
+    function updateNeuralNetwork(dt) {
+      // 1. 1단계 [시선 자극 (Visual Gaze: 좌측 / 상·하 / 우측)]
+      const lDist = Math.min(SENSING_RADIUS, sensors.left);
+      const fDist = Math.min(SENSING_RADIUS, sensors.front);
+      const rDist = Math.min(SENSING_RADIUS, sensors.right);
+
+      const obs = sensors.closestObstacle;
+      const hasVertFeature = obs && (obs.openType === 'open_top' || obs.openType === 'open_bottom');
+
+      // 좌/우 시선 자극: 벽이 가까워질수록 또는 해당 방향을 탐색할수록 자극 상승 (최소 기본 시선 활성 0.22 유지)
+      const rawGazeL = Math.min(1.0, Math.max(0.22, (SENSING_RADIUS - lDist) / SENSING_RADIUS * 0.85 + (sensors.left > sensors.right ? 0.28 : 0.10)));
+      const rawGazeR = Math.min(1.0, Math.max(0.22, (SENSING_RADIUS - rDist) / SENSING_RADIUS * 0.85 + (sensors.right > sensors.left ? 0.28 : 0.10)));
+      // 상·하 시선 자극: 전방 장애물/도약턱/런웨이 게이트 접근 및 고도 변화 시 자극 상승
+      const rawGazeV = Math.min(1.0, Math.max(0.25,
+        ((SENSING_RADIUS - fDist) / SENSING_RADIUS) * 0.90 +
+        (hasVertFeature ? 0.45 : 0.0) +
+        (agent.y > LOW_CRUISE_HEIGHT + 0.01 ? 0.35 : 0.0)
+      ));
+
+      neuralNet.inputs = [rawGazeL, rawGazeV, rawGazeR];
+
+      // 2. 2단계 [시선방향 출구 확인 (Exit Check)] & 3단계 [신체 기관 제어 (다리 vs 날개)]
+      let exitL = 0.25, exitV = 0.30, exitR = 0.25;
+      let actLegL = 0.25, actWing = 0.42, actLegR = 0.25;
+      let legDesc = '정면 통로 유지 · 양쪽 다리 균형 보행';
+      let wingDesc = '저공 2.0cm 순항 양력 유지 (18Hz)';
+
+      if (currentEngine === ENGINES.UNTRAINED) {
+        // [미학습 엔진]: 시선 자극과 출구 판단이 불규칙하게 흔들리며 다리/날개 협응 미숙
+        exitL = Math.min(1.0, 0.20 + 0.55 * Math.abs(Math.sin(simulationTime * 9.0 + 0.5)));
+        exitV = Math.min(1.0, 0.15 + 0.40 * Math.abs(Math.cos(simulationTime * 7.2)));
+        exitR = Math.min(1.0, 0.20 + 0.55 * Math.abs(Math.sin(simulationTime * 8.3 + 2.1)));
+
+        actLegL = Math.min(1.0, exitL * 0.85 + 0.15 * Math.random());
+        actLegR = Math.min(1.0, exitR * 0.85 + 0.15 * Math.random());
+        actWing = (agent.bumpTimer > 0) ? 0.88 : (0.30 + 0.25 * Math.sin(simulationTime * 11.0));
+
+        legDesc = (agent.bumpTimer > 0) ? '💥 벽면 충돌! 다리 방향감각 혼란' : '좌·우 출구 미확정 (불규칙 보행 조향)';
+        wingDesc = (agent.bumpTimer > 0) ? '💥 충돌 반동 급격한 날갯짓 (24Hz)' : '도약턱 미인지 · 저공 비행 지속';
+
+      } else {
+        // [생체반사 & 사전학습 RL 엔진]: 다중경로(시선 -> 출구 -> 다리/날개) 동시 협응 발화
+        const rlBoost = (currentEngine === ENGINES.PRETRAINED_RL) ? 1.15 : 1.0;
+
+        // 좌/우 열린 출구 확인율: 여유 공간이 넓은 쪽의 출구 확인 뉴런이 강하게 활성화
+        const leftOpenRatio = Math.min(1.0, sensors.left / SENSING_RADIUS);
+        const rightOpenRatio = Math.min(1.0, sensors.right / SENSING_RADIUS);
+
+        if (currentState === STATES.AVOID_STEER || currentState === STATES.ROTATE_EVADE) {
+          if (sensors.left >= sensors.right) {
+            exitL = Math.min(1.0, 0.82 * rlBoost);
+            exitR = 0.22;
+            actLegL = Math.min(1.0, 0.88 * rlBoost);
+            actLegR = 0.20;
+            legDesc = '🔍 좌측 출구 확보 ➔ 🦵 좌측 다리 강하게 조향';
+          } else {
+            exitR = Math.min(1.0, 0.82 * rlBoost);
+            exitL = 0.22;
+            actLegR = Math.min(1.0, 0.88 * rlBoost);
+            actLegL = 0.20;
+            legDesc = '🔍 우측 출구 확보 ➔ 🦵 우측 다리 강하게 조향';
+          }
+        } else {
+          // 순항 또는 도약 중에도 좌·우 다리 신경은 미세 조향 및 균형 유지를 동시에 수행!
+          exitL = Math.min(0.95, (0.32 + leftOpenRatio * 0.35 + (sensors.right < 0.09 ? 0.30 : 0)) * rlBoost);
+          exitR = Math.min(0.95, (0.32 + rightOpenRatio * 0.35 + (sensors.left < 0.09 ? 0.30 : 0)) * rlBoost);
+          actLegL = Math.min(0.92, exitL * 0.85);
+          actLegR = Math.min(0.92, exitR * 0.85);
+
+          if (Math.abs(actLegL - actLegR) > 0.15) {
+            legDesc = actLegL > actLegR
+              ? '👀 우측 벽 인지 ➔ 🦵 좌측 다리로 출구 미세 조향'
+              : '👀 좌측 벽 인지 ➔ 🦵 우측 다리로 출구 미세 조향';
+          } else {
+            legDesc = '🔍 전방 출구 정조준 ➔ 🦵 양쪽 다리 균형 추진';
+          }
+        }
+
+        // 상·하 출구 확인 및 🪽 날개 신경 제어 (다리와 동시에 작동!)
+        if (currentState === STATES.CLIMB_OVER || currentState === STATES.LEVEL_FLIGHT) {
+          exitV = Math.min(1.0, 0.94 * rlBoost);
+          actWing = Math.min(1.0, 0.96 * rlBoost);
+          wingDesc = `🔍 상단 열린 출구 확인 ➔ 🪽 날개 도약 상승 (${(agent.y * 100).toFixed(1)}cm)`;
+        } else if (currentState === STATES.DIVE_UNDER) {
+          exitV = Math.min(1.0, 0.86 * rlBoost);
+          actWing = Math.min(1.0, 0.78 * rlBoost);
+          wingDesc = '🔍 하단 게이트 출구 확인 ➔ 🪽 날개 저공 밀착 통과';
+        } else if (currentState === STATES.RETURN_CRUISE) {
+          exitV = 0.65;
+          actWing = 0.68;
+          wingDesc = '장애물 통과 완료 ➔ 🪽 날개 감속 하강 복귀';
+        } else {
+          // 순항 중에도 선회 시 양력 보조로 날개 신경이 함께 반응
+          const turnLiftBoost = Math.abs(actLegL - actLegR) * 0.35;
+          exitV = Math.min(0.85, 0.38 + turnLiftBoost + (hasVertFeature ? 0.35 : 0));
+          actWing = Math.min(0.88, 0.44 + turnLiftBoost);
+          wingDesc = turnLiftBoost > 0.12
+            ? '선회 고도 유지 ➔ 🪽 날개 양력 + 🦵 다리 동시 협응'
+            : '저공 2.0cm 순항 호버링 ➔ 🪽 날개 안정 양력 유지';
+        }
+      }
+
+      neuralNet.hidden = [exitL, exitV, exitR];
+      neuralNet.outputs = [actLegL, actWing, actLegR];
+
+      const maxLeg = Math.max(actLegL, actLegR);
+      neuralNet.legActivity = maxLeg;
+      neuralNet.wingActivity = actWing;
+      neuralNet.gazeThreat = Math.max(0.08, (SENSING_RADIUS - Math.min(lDist, fDist, rDist)) / SENSING_RADIUS);
+      neuralNet.overallFiring = (maxLeg * 0.45 + actWing * 0.55);
+
+      // 3. 다중경로 펄스 애니메이션 전진
+      for (let i = 0; i < BIO_PATHWAYS.length; i++) {
+        const pw = BIO_PATHWAYS[i];
+        const srcAct = pw.layer === 0 ? neuralNet.inputs[pw.from] : neuralNet.hidden[pw.from];
+        const dstAct = pw.layer === 0 ? neuralNet.hidden[pw.to] : neuralNet.outputs[pw.to];
+        const pathAct = (srcAct + dstAct) * 0.5 * pw.weight;
+        pw.currentAct = pathAct;
+        pw.phase = (pw.phase + dt * (0.65 + pathAct * 1.45)) % 1.0;
+      }
+
+      // 4. 실시간 파형 그래프 히스토리 기록 (날개 상하 / 다리 좌우 / 시선 자극)
+      neuralNet.waveHistory.push({
+        wing: neuralNet.wingActivity,
+        leg: neuralNet.legActivity,
+        threat: neuralNet.gazeThreat
+      });
+      if (neuralNet.waveHistory.length > 100) {
+        neuralNet.waveHistory.shift();
+      }
+
+      // 5. UI 텍스트 배지 실시간 업데이트
+      const fireLabel = document.getElementById('neural-firing-rate');
+      if (fireLabel) {
+        const activePathsCount = BIO_PATHWAYS.filter(p => (p.currentAct || 0) > 0.35).length;
+        const pct = Math.round(neuralNet.overallFiring * 100);
+        fireLabel.textContent = `활성 경로: ${activePathsCount}개 동시 발화 (${pct}%)`;
+      }
+
+      const legPctEl = document.getElementById('leg-act-pct');
+      const legDescEl = document.getElementById('leg-act-desc');
+      const wingPctEl = document.getElementById('wing-act-pct');
+      const wingDescEl = document.getElementById('wing-act-desc');
+
+      if (legPctEl) legPctEl.textContent = `${Math.round(maxLeg * 100)}%`;
+      if (legDescEl) legDescEl.textContent = legDesc;
+      if (wingPctEl) wingPctEl.textContent = `${Math.round(actWing * 100)}%`;
+      if (wingDescEl) wingDescEl.textContent = wingDesc;
+    }
+
+    function drawNeuralCircuit() {
+      const canvas = document.getElementById('neural-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 3-Column Layout: 1) 시선 자극 -> 2) 시선방향 출구확인 -> 3) 다리(좌우)·날개(상하)
+      const colX = [56, 170, 282];
+      const rowY = [30, 74, 118];
+
+      const stage1Labels = ['👀 좌측 시선', '👀 상·하 시선', '👀 우측 시선'];
+      const stage2Labels = ['🔍 좌측 출구', '🔍 상·하 출구', '🔍 우측 출구'];
+      const stage3Labels = ['🦵 좌다리(좌)', '🪽 날개(상하)', '🦵 우다리(우)'];
+
+      const pathColors = {
+        leg:   { line: '#f59e0b', pulse: '#fde68a' }, // Amber/Gold for Legs (Left/Right)
+        wing:  { line: '#38bdf8', pulse: '#bae6fd' }, // Cyan/Sky for Wings (Up/Down)
+        coord: { line: '#34d399', pulse: '#a7f3d0' }  // Emerald for Leg-Wing Coordination
+      };
+
+      // 1. Draw All 10 Multi-Pathways (Inactive = subtle dashed, Active = glowing neon + flowing pulses)
+      for (let i = 0; i < BIO_PATHWAYS.length; i++) {
+        const pw = BIO_PATHWAYS[i];
+        const x0 = colX[pw.layer];
+        const y0 = rowY[pw.from];
+        const x1 = colX[pw.layer + 1];
+        const y1 = rowY[pw.to];
+
+        const act = pw.currentAct || 0.2;
+        const isFired = act > 0.35;
+        const col = pathColors[pw.type] || pathColors.leg;
+
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+
+        if (isFired) {
+          ctx.strokeStyle = col.line;
+          ctx.globalAlpha = Math.min(0.95, 0.25 + act * 0.75);
+          ctx.lineWidth = 1.2 + act * 2.4;
+          ctx.setLineDash([]);
+          ctx.shadowColor = col.line;
+          ctx.shadowBlur = act * 6;
+          ctx.stroke();
+          ctx.shadowBlur = 0;
+
+          // Draw 2 traveling neural pulses along each active pathway
+          for (let pIdx = 0; pIdx < 2; pIdx++) {
+            const prog = (pw.phase + pIdx * 0.5) % 1.0;
+            const px = x0 + (x1 - x0) * prog;
+            const py = y0 + (y1 - y0) * prog;
+
+            ctx.beginPath();
+            ctx.arc(px, py, 2.2 + act * 1.2, 0, Math.PI * 2);
+            ctx.fillStyle = col.pulse;
+            ctx.globalAlpha = 0.95;
+            ctx.shadowColor = col.line;
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+          }
+        } else {
+          // Dormant pathway background guide
+          ctx.strokeStyle = '#334155';
+          ctx.globalAlpha = 0.32;
+          ctx.lineWidth = 1.0;
+          ctx.setLineDash([2, 3]);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+      ctx.globalAlpha = 1.0;
+
+      // 2. Helper to draw Biological Nodes with live % badge
+      function drawBioNode(x, y, label, act, colorType, alignMode) {
+        const r = 8.5;
+        const mainColor = colorType === 'wing' ? '#38bdf8' : (colorType === 'exit' ? '#34d399' : '#f59e0b');
+        const isActive = act > 0.38;
+
+        // Outer pulse halo when active
+        if (isActive) {
+          ctx.beginPath();
+          ctx.arc(x, y, r + 3.5 * act, 0, Math.PI * 2);
+          ctx.fillStyle = mainColor;
+          ctx.globalAlpha = 0.18 * act;
+          ctx.fill();
+          ctx.globalAlpha = 1.0;
+        }
+
+        // Node circle
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fillStyle = isActive ? mainColor : '#0f172a';
+        ctx.shadowColor = isActive ? mainColor : 'transparent';
+        ctx.shadowBlur = isActive ? 10 : 0;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.lineWidth = 1.6;
+        ctx.strokeStyle = isActive ? '#f8fafc' : '#475569';
+        ctx.stroke();
+
+        // Percentage inside or below node
+        const pctTxt = `${Math.round(act * 100)}%`;
+        ctx.font = 'bold 8px monospace';
+        ctx.fillStyle = isActive ? '#020617' : '#94a3b8';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(pctTxt, x, y + 0.5);
+
+        // Node Label
+        ctx.font = 'bold 9.5px -apple-system, BlinkMacSystemFont, sans-serif';
+        ctx.fillStyle = isActive ? '#f8fafc' : '#94a3b8';
+
+        if (alignMode === 'left') {
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x - 6, y - 14);
+        } else if (alignMode === 'center') {
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x, y - 14);
+        } else {
+          ctx.textAlign = 'center';
+          ctx.fillText(label, x + 6, y - 14);
+        }
+      }
+
+      // Render Stage 1 (Gaze), Stage 2 (Exit Check), Stage 3 (Body Organs: Legs & Wings)
+      for (let i = 0; i < 3; i++) {
+        drawBioNode(colX[0], rowY[i], stage1Labels[i], neuralNet.inputs[i], i === 1 ? 'wing' : 'leg', 'left');
+        drawBioNode(colX[1], rowY[i], stage2Labels[i], neuralNet.hidden[i], i === 1 ? 'wing' : 'exit', 'center');
+        drawBioNode(colX[2], rowY[i], stage3Labels[i], neuralNet.outputs[i], i === 1 ? 'wing' : 'leg', 'right');
+      }
+    }
+
+    function drawRealtimeGraph() {
+      const canvas = document.getElementById('graph-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 1. Grid background
+      ctx.strokeStyle = 'rgba(51, 65, 85, 0.45)';
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([3, 3]);
+
+      [0.25, 0.50, 0.75].forEach(ratio => {
+        const y = h - h * ratio;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      const history = neuralNet.waveHistory;
+      if (history.length < 2) return;
+
+      const stepX = w / (history.length - 1);
+
+      function drawCurve(key, color, lineWidth = 1.6) {
+        ctx.beginPath();
+        for (let i = 0; i < history.length; i++) {
+          const pt = history[i];
+          const val = pt[key] !== undefined ? pt[key] : 0;
+          const x = i * stepX;
+          const y = h - val * (h - 10) - 5;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 4;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      }
+
+      // Waveform curves: Threat (Rose) / Legs Left-Right (Amber) / Wings Up-Down (Cyan)
+      drawCurve('threat', '#f43f5e', 1.3); // 👀 시선 장애물 자극
+      drawCurve('leg',    '#f59e0b', 1.7); // 🦵 다리 신경 (좌·우 이동)
+      drawCurve('wing',   '#38bdf8', 2.0); // 🪽 날개 신경 (위·아래 이동)
+    }
+function resolve3DCollisionsWithImpact(origX, origZ, targetX, targetZ, currentY) {
+      let resX = targetX;
+      let resZ = targetZ;
+      const r = BEE_COLLISION_RADIUS;
+      let didBump = false;
+      let contactX = targetX, contactZ = targetZ;
+      let bumpNormalX = 0, bumpNormalZ = 0;
+
+      // 1. 미로 벽체 (AABB 박스) 충돌 판정
+      for (let i = 0; i < obstacles.length; i++) {
+        const obs = obstacles[i];
+
+        // 도약 중(CLIMB_OVER/LEVEL_FLIGHT) 또는 하단 게이트 통과 중(DIVE_UNDER/LEVEL_FLIGHT)인 대상 벽체는 충돌 제외
+        if (agent.targetObstacle === obs) {
+          if (obs.openType === 'open_top' && currentY >= obs.yTop - 0.006) continue;
+          if (obs.openType === 'open_bottom' && currentY <= obs.yBottom + 0.006) continue;
+        }
+
+        // 높이 판정: 벽 상단보다 높거나 하단 개방보다 낮으면 통과
+        if (currentY >= obs.yTop + 0.002) continue;
+        if (currentY <= obs.yBottom - 0.002) continue;
+
+        const minX = obs.x - obs.width / 2 - r;
+        const maxX = obs.x + obs.width / 2 + r;
+        const minZ = obs.z - obs.length / 2 - r;
+        const maxZ = obs.z + obs.length / 2 + r;
+
+        if (resX > minX && resX < maxX && resZ > minZ && resZ < maxZ) {
+          didBump = true;
+
+          // 정확한 표면 접촉점 계산 (벽체 중심이 아닌 실제 벌이 부딪힌 벽면 좌표!)
+          contactX = Math.max(obs.x - obs.width / 2, Math.min(obs.x + obs.width / 2, resX));
+          contactZ = Math.max(obs.z - obs.length / 2, Math.min(obs.z + obs.length / 2, resZ));
+
+          // 벽체의 주 진행 방향에 따른 정밀 축 밀어내기 (코너 순간이동 방지)
+          if (obs.width >= obs.length) {
+            // X축으로 긴 수평벽: Z축 진입 차단
+            if (origZ <= obs.z) {
+              resZ = minZ;
+              bumpNormalX = 0;
+              bumpNormalZ = -1;
+            } else {
+              resZ = maxZ;
+              bumpNormalX = 0;
+              bumpNormalZ = 1;
+            }
+          } else {
+            // Z축으로 긴 수직벽: X축 진입 차단
+            if (origX <= obs.x) {
+              resX = minX;
+              bumpNormalX = -1;
+              bumpNormalZ = 0;
+            } else {
+              resX = maxX;
+              bumpNormalX = 1;
+              bumpNormalZ = 0;
+            }
+          }
+        }
+      }
+
+      // 2. 통로 장애물: 기둥 (Pillar) & 움직이는 풍선 (Balloon) 충돌 & 튕김 판정
+      for (let i = 0; i < dynamicHazards.length; i++) {
+        const h = dynamicHazards[i];
+
+        if (h.type === 'pillar') {
+          // 기둥 (2D 원기둥 충돌)
+          if (currentY >= h.yBottom && currentY <= h.yTop) {
+            const dx = resX - h.x;
+            const dz = resZ - h.z;
+            const dist = Math.hypot(dx, dz);
+            const minDist = h.radius + r;
+
+            if (dist < minDist) {
+              didBump = true;
+              const nx = dx / (dist || 0.001);
+              const nz = dz / (dist || 0.001);
+              resX = h.x + nx * minDist;
+              resZ = h.z + nz * minDist;
+              contactX = h.x + nx * h.radius;
+              contactZ = h.z + nz * h.radius;
+              bumpNormalX = nx;
+              bumpNormalZ = nz;
+            }
+          }
+        } else if (h.type === 'balloon') {
+          // 풍선 (3D 구체 충돌)
+          const dx = resX - h.x;
+          const dy = currentY - h.y;
+          const dz = resZ - h.z;
+          const dist3D = Math.hypot(dx, dy, dz);
+          const minDist = h.radius + r;
+
+          if (dist3D < minDist) {
+            didBump = true;
+            const nx = dx / (dist3D || 0.001);
+            const nz = dz / (dist3D || 0.001);
+            resX = h.x + nx * minDist;
+            resZ = h.z + nz * minDist;
+            contactX = h.x + nx * h.radius;
+            contactZ = h.z + nz * h.radius;
+            bumpNormalX = nx;
+            bumpNormalZ = nz;
+
+            // 풍선 탄성 스쿼시 리액션 발동
+            h.squishTimer = 0.40;
+          }
+        }
+      }
+
+      // 3. 챔버 외곽 경계벽
+      const boundLimit = HALF_ARENA - currentWallThickness - r;
+      if (resX < -boundLimit) { didBump = true; resX = -boundLimit; bumpNormalX = 1; contactX = -boundLimit; contactZ = resZ; }
+      if (resX > boundLimit)  { didBump = true; resX = boundLimit;  bumpNormalX = -1; contactX = boundLimit; contactZ = resZ; }
+      if (resZ < -boundLimit) { didBump = true; resZ = -boundLimit; bumpNormalZ = 1; contactX = resX; contactZ = -boundLimit; }
+      if (resZ > boundLimit)  { didBump = true; resZ = boundLimit;  bumpNormalZ = -1; contactX = resX; contactZ = boundLimit; }
+
+      return { x: resX, z: resZ, didBump, contactX, contactZ, bumpNormalX, bumpNormalZ };
+    }
+
+    function triggerImpactRing(x, y, z) {
+      if (!impactRingMesh) return;
+      impactRingMesh.position.set(x, y, z);
+      impactRingMesh.rotation.x = Math.PI / 2;
+      impactRingMesh.scale.set(1, 1, 1);
+      impactRingMesh.visible = true;
+      impactRingMesh.material.opacity = 0.9;
+    }
+
+    function updateImpactRing(dt) {
+      if (!impactRingMesh || !impactRingMesh.visible) return;
+      impactRingMesh.scale.x += dt * 8;
+      impactRingMesh.scale.y += dt * 8;
+      impactRingMesh.material.opacity -= dt * 3.5;
+      if (impactRingMesh.material.opacity <= 0) {
+        impactRingMesh.visible = false;
+      }
+    }
+
+    // =========================================================================
+    // 7. TWO CAMERA MODES: 1) 스마트 드론뷰  2) 꿀벌중심 쿼터뷰
+    // =========================================================================
+    function updateCamera() {
+      if (cameraMode === 'smart_drone') {
+        // [1단계 확대 · 스마트드론뷰]: 줌인 시 꿀벌 얼굴/눈 코앞(2.2cm)까지 초근접 매크로 확대 가능!
+        const horizDist = droneControl.dist * Math.cos(droneControl.pitch);
+        const camH = droneControl.dist * Math.sin(droneControl.pitch);
+
+        // 줌인 거리가 가까워질수록 상공 고집을 풀고 꿀벌 얼굴/눈높이로 자연스럽게 내려옴!
+        const minHeightAboveBee = droneControl.dist < 0.08 ? 0.002 : (droneControl.dist < 0.16 ? 0.02 : 0.10);
+        const targetCamX = agent.x + Math.sin(droneControl.fixedYaw) * horizDist;
+        const targetCamY = Math.max(0.008, agent.y + Math.max(minHeightAboveBee, camH));
+        const targetCamZ = agent.z + Math.cos(droneControl.fixedYaw) * horizDist;
+
+        const lerpSpeed = droneControl.dist < 0.06 ? 0.28 : 0.14;
+        droneControl.pos.lerp(new THREE.Vector3(targetCamX, targetCamY, targetCamZ), lerpSpeed);
+        camera.position.copy(droneControl.pos);
+
+        // 초근접 시 꿀벌의 머리/얼굴(정면 눈 쪽)을 정밀 주시
+        const faceOffset = droneControl.dist < 0.08 ? 0.003 : 0.0;
+        const headX = agent.x + Math.sin(agent.heading) * faceOffset;
+        const headZ = agent.z + Math.cos(agent.heading) * faceOffset;
+        droneControl.lookTarget.lerp(new THREE.Vector3(headX, agent.y + 0.001, headZ), lerpSpeed + 0.04);
+        camera.lookAt(droneControl.lookTarget);
+
+      } else {
+        // [2단계 축소 · 3인칭 전체뷰]: 1m×1m 미로 전체를 원거리에서 한눈에 조망 (360도 회전 및 줌인/아웃 지원)
+        const x = tpvControl.distance * Math.sin(tpvControl.phi) * Math.sin(tpvControl.theta);
+        const y = tpvControl.distance * Math.cos(tpvControl.phi);
+        const z = tpvControl.distance * Math.sin(tpvControl.phi) * Math.cos(tpvControl.theta);
+
+        camera.position.set(tpvControl.target.x + x, tpvControl.target.y + y, tpvControl.target.z + z);
+        camera.lookAt(tpvControl.target.x, tpvControl.target.y, tpvControl.target.z);
+      }
+    }
+
+    function setupInteractiveControls(domElement) {
+      domElement.addEventListener('mousedown', (e) => {
+        isMouseDragging = true;
+        prevMousePos.x = e.clientX;
+        prevMousePos.y = e.clientY;
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isMouseDragging) return;
+        const dx = e.clientX - prevMousePos.x;
+        const dy = e.clientY - prevMousePos.y;
+        prevMousePos.x = e.clientX;
+        prevMousePos.y = e.clientY;
+
+        if (cameraMode === 'smart_drone') {
+          // 확대 스마트드론뷰: 마우스 드래그로 꿀벌 얼굴 정면/측면/상공 각도 자유 회전
+          droneControl.fixedYaw -= dx * 0.008;
+          droneControl.pitch += dy * 0.006;
+          // 눈높이 수평(0.05 rad)부터 수직 상공까지 자유롭게 허용하여 얼굴 정면 관찰 가능!
+          droneControl.pitch = Math.max(0.05, Math.min(Math.PI / 2 - 0.04, droneControl.pitch));
+        } else {
+          // 축소 3인칭 전체뷰: 360도 자유 궤도 회전
+          tpvControl.theta -= dx * 0.008;
+          tpvControl.phi -= dy * 0.006;
+          tpvControl.phi = Math.max(0.10, Math.min(Math.PI / 2 - 0.04, tpvControl.phi));
+        }
+      });
+
+      window.addEventListener('mouseup', () => { isMouseDragging = false; });
+
+      domElement.addEventListener('wheel', (e) => {
+        zoomCamera(e.deltaY * 0.0012);
+        e.preventDefault();
+      }, { passive: false });
+    }
+
+    function zoomCamera(delta) {
+      if (cameraMode === 'smart_drone') {
+        // 가까운 거리에서는 세밀하게 줌인되어 꿀벌 얼굴 코앞(0.020m = 2.0cm)까지 부드럽게 진입!
+        const stepScale = droneControl.dist < 0.08 ? 0.045 : 0.14;
+        droneControl.dist += delta * stepScale;
+        droneControl.dist = Math.max(0.020, Math.min(0.85, droneControl.dist));
+
+        // 초근접 확대 시 자동으로 카메라 앙각을 꿀벌 눈높이(얼굴 각도)로 낮춰주어 얼굴이 정면으로 보이게 지원
+        if (delta < 0 && droneControl.dist < 0.07 && droneControl.pitch > 0.32) {
+          droneControl.pitch = Math.max(0.18, droneControl.pitch - 0.12);
+        }
+      } else {
+        // 3인칭 전체뷰 줌인/줌아웃 (0.25m ~ 2.40m)
+        tpvControl.distance += delta * 0.45;
+        tpvControl.distance = Math.max(0.25, Math.min(2.40, tpvControl.distance));
+      }
+    }
+
+    function snapToBeeFaceCloseup() {
+      setCameraMode('smart_drone');
+      // 꿀벌 진행 방향의 정면 대각선(얼굴과 눈이 가장 예쁘게 보이는 얼짱 각도) 코앞 2.5cm로 즉시 줌인!
+      droneControl.dist = 0.025;
+      droneControl.pitch = 0.20;
+      droneControl.fixedYaw = agent.heading + 0.35;
+    }
+
+    function resetCameraAngles(mode) {
+      const targetMode = mode || cameraMode;
+      if (targetMode === 'smart_drone') {
+        droneControl.dist = 0.24;
+        droneControl.fixedYaw = Math.PI;
+        droneControl.pitch = 0.85;
+      } else {
+        tpvControl.distance = 1.25;
+        tpvControl.theta = Math.PI * 0.25;
+        tpvControl.phi = Math.PI * 0.28;
+      }
+    }
+
+    function setCameraMode(mode) {
+      cameraMode = mode;
+      const droneBtn = document.getElementById('cam-drone-btn');
+      const tpvBtn = document.getElementById('cam-tpv-btn');
+      const modeLabel = document.getElementById('cam-mode-label');
+
+      const activeCls = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-cyan-600 text-white shadow-lg shadow-cyan-900/50';
+      const inactiveCls = 'px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700';
+
+      if (droneBtn) droneBtn.className = mode === 'smart_drone' ? activeCls : inactiveCls;
+      if (tpvBtn) tpvBtn.className = mode === 'tpv' ? activeCls : inactiveCls;
+
+      if (modeLabel) {
+        if (mode === 'smart_drone') modeLabel.textContent = '🔍 확대뷰 · 스마트드론 (얼굴 초근접)';
+        else modeLabel.textContent = '🌐 축소뷰 · 3인칭 전체조망';
+      }
+      resetCameraAngles(mode);
+    }
+    // =========================================================================
+    // 8. UI TELEMETRY & EVENT HANDLING
+    // =========================================================================
+    function updateStatusBadge() {
+      const badge = document.getElementById('state-badge');
+      if (!badge) return;
+      badge.textContent = currentState;
+
+      if (currentState === STATES.BUMP_REACTION) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-red-950 text-red-300 border border-red-500/60 badge-bump';
+      } else if (currentState === STATES.ROTATE_EVADE) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-amber-950 text-amber-300 border border-amber-500/50 badge-pulse';
+      } else if (currentState === STATES.CRUISE) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-emerald-950 text-emerald-400 border border-emerald-500/40 badge-pulse';
+      } else if (currentState === STATES.AVOID_STEER) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-sky-950 text-sky-400 border border-sky-500/40 badge-pulse';
+      } else if (currentState === STATES.CLIMB_OVER || currentState === STATES.DIVE_UNDER || currentState === STATES.LEVEL_FLIGHT) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-indigo-950 text-indigo-400 border border-indigo-500/40 badge-pulse';
+      } else if (currentState === STATES.GOAL_REACHED) {
+        badge.className = 'px-2.5 py-1 rounded-md text-xs font-bold tracking-wider bg-yellow-950 text-yellow-300 border border-yellow-500/40 badge-pulse';
+      }
+    }
+
+    let lastUiUpdate = 0;
+    const uiElements = {};
+
+    function updateUiTelemetry() {
+      if (!uiElements.distLeft) {
+        uiElements.distLeft = document.getElementById('dist-left');
+        uiElements.distFront = document.getElementById('dist-front');
+        uiElements.distRight = document.getElementById('dist-right');
+        uiElements.threat = document.getElementById('threat-summary');
+        uiElements.altitudeVal = document.getElementById('altitude-val');
+        uiElements.altitudeBar = document.getElementById('altitude-bar');
+      }
+
+      if (uiElements.distLeft) {
+        uiElements.distLeft.textContent = (sensors.left * 100).toFixed(1) + ' cm';
+        uiElements.distFront.textContent = (sensors.front * 100).toFixed(1) + ' cm';
+        uiElements.distRight.textContent = (sensors.right * 100).toFixed(1) + ' cm';
+
+        if (sensors.threatLevel === 'danger') {
+          uiElements.threat.textContent = '벽체 최근접 감지!';
+          uiElements.threat.className = 'text-[10px] text-red-400 font-bold';
+        } else if (sensors.threatLevel === 'warning') {
+          const obs = sensors.closestObstacle;
+          if (obs && obs.openType === 'open_top') {
+            uiElements.threat.textContent = `${(obs.yTop*100).toFixed(0)}cm 상단 개방턱 (도약 준비)`;
+            uiElements.threat.className = 'text-[10px] text-amber-400 font-bold';
+          } else if (obs && obs.openType === 'open_bottom') {
+            uiElements.threat.textContent = `${(obs.yBottom*100).toFixed(0)}cm 하단 런웨이 게이트 (저공 통과)`;
+            uiElements.threat.className = 'text-[10px] text-indigo-400 font-bold';
+          } else {
+            uiElements.threat.textContent = '반투명 벽체 감지 (회피 조향)';
+            uiElements.threat.className = 'text-[10px] text-sky-400 font-medium';
+          }
+        } else {
+          uiElements.threat.textContent = '전방 통로 확보';
+          uiElements.threat.className = 'text-[10px] text-emerald-400';
+        }
+
+        const altCm = (agent.y * 100).toFixed(1);
+        uiElements.altitudeVal.textContent = `${altCm} cm (고도)`;
+
+        const barPct = Math.min(100, (agent.y / CHAMBER_HEIGHT) * 100);
+        uiElements.altitudeBar.style.width = `${barPct}%`;
+
+        const flapEl = document.getElementById('telemetry-flap-hz');
+        if (flapEl) flapEl.textContent = `${(agent.wingRate).toFixed(1)} Hz (50% 감속)`;
+      }
+    }
+
+    // =========================================================================
+    // 9. ANIMATION LOOP (60 FPS)
+    // =========================================================================
+    let lastTimestamp = performance.now();
+    let frameCount = 0;
+    let fpsTimer = 0;
+
+    function animate(timestamp) {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(0.05, (timestamp - lastTimestamp) / 1000);
+      lastTimestamp = timestamp;
+
+      frameCount++;
+      fpsTimer += dt;
+      if (fpsTimer >= 0.5) {
+        const fps = Math.round(frameCount / fpsTimer);
+        const fpsEl = document.getElementById('fps-counter');
+        if (fpsEl) fpsEl.textContent = `${fps} FPS`;
+        frameCount = 0;
+        fpsTimer = 0;
+      }
+
+      if (!isPaused) {
+        simulationTime += dt;
+        updateDynamicHazards(dt);
+        updateSensingRadar();
+        stepRuleEngine(dt);
+        updateImpactRing(dt);
+
+        // Update Neural Synapses & Waveform Graphs
+        updateNeuralNetwork(dt);
+        drawNeuralCircuit();
+        drawRealtimeGraph();
+
+        if (simulationTime - lastUiUpdate > 0.10) {
+          updateUiTelemetry();
+          lastUiUpdate = simulationTime;
+        }
+      }
+
+      updateCamera();
+      renderer.render(scene, camera);
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Event Listeners
+    document.addEventListener('DOMContentLoaded', () => {
+      initScene();
+      requestAnimationFrame(animate);
+
+      const droneBtn = document.getElementById('cam-drone-btn');
+      const faceBtn = document.getElementById('btn-face-closeup');
+      const tpvBtn = document.getElementById('cam-tpv-btn');
+
+      if (droneBtn) droneBtn.addEventListener('click', () => setCameraMode('smart_drone'));
+      if (faceBtn) faceBtn.addEventListener('click', () => snapToBeeFaceCloseup());
+      if (tpvBtn) tpvBtn.addEventListener('click', () => setCameraMode('tpv'));
+
+      // Zoom Buttons
+      document.getElementById('btn-zoom-in').addEventListener('click', () => zoomCamera(-0.15));
+      document.getElementById('btn-zoom-out').addEventListener('click', () => zoomCamera(0.15));
+      document.getElementById('btn-zoom-reset').addEventListener('click', () => resetCameraAngles());
+
+      // Toggle Custom Panel
+      const customPanel = document.getElementById('bee-custom-panel');
+      const togglePanelBtn = document.getElementById('btn-toggle-custom-panel');
+      const closePanelBtn = document.getElementById('btn-close-custom-panel');
+      const panelBtnText = document.getElementById('custom-panel-btn-text');
+
+      function toggleCustomPanel() {
+        const isHidden = customPanel.classList.contains('hidden');
+        if (isHidden) {
+          customPanel.classList.remove('hidden');
+          panelBtnText.textContent = '커스텀 패널 닫기';
+          togglePanelBtn.className = 'glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-500 text-slate-950 shadow-lg';
+        } else {
+          customPanel.classList.add('hidden');
+          panelBtnText.textContent = '꿀벌 커스텀 패널 열기';
+          togglePanelBtn.className = 'glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 shadow-lg shadow-amber-950/40';
+        }
+      }
+
+      togglePanelBtn.addEventListener('click', toggleCustomPanel);
+      closePanelBtn.addEventListener('click', toggleCustomPanel);
+
+      // Reference Image toggle
+      const refImgContainer = document.getElementById('ref-img-container');
+      const toggleRefBtn = document.getElementById('btn-toggle-ref-img');
+      toggleRefBtn.addEventListener('click', () => {
+        refImgContainer.classList.toggle('hidden');
+        toggleRefBtn.textContent = refImgContainer.classList.contains('hidden') ? '이미지 보기' : '이미지 접기';
+      });
+
+      // Custom Panel Controls
+      document.getElementById('slider-wing-scale').addEventListener('input', (e) => {
+        setWingScale(parseInt(e.target.value, 10) / 100);
+      });
+
+      document.querySelectorAll('.btn-wing-preset').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const sc = parseInt(btn.getAttribute('data-scale'), 10) / 100;
+          setWingScale(sc);
+        });
+      });
+
+      document.getElementById('slider-color-depth').addEventListener('input', (e) => {
+        setBeeColorDepth(parseInt(e.target.value, 10) / 100);
+      });
+
+      document.getElementById('btn-tone-original').addEventListener('click', () => setBeeColorDepth(1.00));
+      document.getElementById('btn-tone-rich').addEventListener('click', () => setBeeColorDepth(1.25));
+      document.getElementById('btn-tone-bright').addEventListener('click', () => setBeeColorDepth(1.45));
+
+      document.getElementById('slider-wing-opacity').addEventListener('input', (e) => {
+        setWingOpacity(parseInt(e.target.value, 10) / 100);
+      });
+
+      // Wing Flap Speed Slider (18Hz base = 50% reduction)
+      document.getElementById('slider-flap-speed').addEventListener('input', (e) => {
+        const spd = parseInt(e.target.value, 10) / 100;
+        customConfig.flapSpeed = spd;
+        const currentHz = (18.0 * spd).toFixed(1);
+        document.getElementById('label-flap-speed').textContent = `${currentHz} Hz (${spd.toFixed(1)}x)`;
+      });
+
+      // Wing pose presets
+      const poseBtns = {
+        idle: document.getElementById('btn-pose-idle'),
+        up: document.getElementById('btn-pose-up'),
+        flat: document.getElementById('btn-pose-flat'),
+        down: document.getElementById('btn-pose-down')
+      };
+
+      function setWingPose(pose) {
+        customConfig.wingPose = pose;
+        Object.entries(poseBtns).forEach(([p, btn]) => {
+          if (btn) {
+            if (p === pose) {
+              btn.className = 'btn-pose px-2 py-1 rounded bg-amber-600 text-white font-bold transition';
+            } else {
+              btn.className = 'btn-pose px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition';
+            }
+          }
+        });
+      }
+
+      Object.entries(poseBtns).forEach(([pose, btn]) => {
+        if (btn) btn.addEventListener('click', () => setWingPose(pose));
+      });
+
+      // Sub wings toggle
+      document.getElementById('chk-sub-wings').addEventListener('change', (e) => {
+        customConfig.subWingsVisible = e.target.checked;
+        if (subWingRootLeft) subWingRootLeft.visible = e.target.checked;
+        if (subWingRootRight) subWingRootRight.visible = e.target.checked;
+      });
+
+      // Eye style toggle
+      const eyeBtn = document.getElementById('btn-toggle-eye-style');
+      eyeBtn.addEventListener('click', () => {
+        if (customConfig.eyeStyle === 'glossy') {
+          customConfig.eyeStyle = 'blackout';
+          eyeBtn.textContent = '무광 블랙 눈';
+          eyeBtn.className = 'px-2 py-1 rounded text-[10px] font-bold bg-slate-900 text-slate-300 border border-slate-700';
+          applyEyeAppearance(true);
+        } else {
+          customConfig.eyeStyle = 'glossy';
+          eyeBtn.textContent = '유광 캐치라이트';
+          eyeBtn.className = 'px-2 py-1 rounded text-[10px] font-bold bg-cyan-600 text-white';
+          applyEyeAppearance(false);
+        }
+      });
+
+      // Reset Customization Button
+      document.getElementById('btn-reset-custom').addEventListener('click', () => {
+        setWingScale(1.0);
+        setBeeColorDepth(1.15);
+        setWingOpacity(0.92);
+        customConfig.flapSpeed = 1.0;
+        document.getElementById('slider-flap-speed').value = 100;
+        document.getElementById('label-flap-speed').textContent = '18.0 Hz (1.0x)';
+        setWingPose('idle');
+        customConfig.subWingsVisible = true;
+        document.getElementById('chk-sub-wings').checked = true;
+        if (subWingRootLeft) subWingRootLeft.visible = true;
+        if (subWingRootRight) subWingRootRight.visible = true;
+        customConfig.eyeStyle = 'glossy';
+        eyeBtn.textContent = '유광 캐치라이트';
+        eyeBtn.className = 'px-2 py-1 rounded text-[10px] font-bold bg-cyan-600 text-white';
+        applyEyeAppearance(false);
+      });
+
+      window.addEventListener('keydown', (e) => {
+        if (e.key === '1') setCameraMode('smart_drone');
+        if (e.key === '2' || e.key === '3') setCameraMode('tpv');
+        if (e.key === 'f' || e.key === 'F') snapToBeeFaceCloseup();
+        if (e.key === 'r' || e.key === 'R') resetCameraAngles();
+        if (e.key === '+' || e.key === '=') zoomCamera(-0.15);
+        if (e.key === '-' || e.key === '_') zoomCamera(0.15);
+        if (e.code === 'Space') {
+          e.preventDefault();
+          document.getElementById('play-pause-btn').click();
+        }
+      });
+
+            // FlyMind Engine Selector Buttons
+      const btnUntrained = document.getElementById('btn-engine-untrained');
+      const btnBio = document.getElementById('btn-engine-bio');
+      const btnRL = document.getElementById('btn-engine-rl');
+      const engineTag = document.getElementById('engine-tag');
+      const engineDescCard = document.getElementById('engine-desc-card');
+      const metricBumps = document.getElementById('metric-bumps');
+      const metricSpeed = document.getElementById('metric-speed');
+      const metricRank = document.getElementById('metric-rank');
+      const metricSuccess = document.getElementById('metric-success');
+
+      function switchEngine(engineKey) {
+        currentEngine = engineKey;
+
+        const activeCls = 'btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-cyan-600 text-white shadow-lg shadow-cyan-900/50 border border-cyan-400';
+        const activeUntrainedCls = 'btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-red-600 text-white shadow-lg shadow-red-900/50 border border-red-400';
+        const activeRLCls = 'btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-emerald-600 text-white shadow-lg shadow-emerald-900/50 border border-emerald-400';
+        const inactiveCls = 'btn-engine py-1.5 px-1 rounded-lg font-bold transition flex flex-col items-center gap-0.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700';
+
+        btnUntrained.className = (engineKey === ENGINES.UNTRAINED) ? activeUntrainedCls : inactiveCls;
+        btnBio.className = (engineKey === ENGINES.BIO_REFLEX) ? activeCls : inactiveCls;
+        btnRL.className = (engineKey === ENGINES.PRETRAINED_RL) ? activeRLCls : inactiveCls;
+
+        if (engineKey === ENGINES.UNTRAINED) {
+          engineTag.textContent = '미학습 탐색 엔진';
+          engineTag.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-red-950 text-red-300 border border-red-500/40';
+          engineDescCard.innerHTML = '⚠️ <strong class="text-red-300">미학습 탐색기 (학습 전)</strong>: 환경에 대한 사전 지식이 없어 무작위 탐색(Random walk)을 하며, 벽면 인지 지연(5.5cm)으로 충돌이 잦고 도약턱을 인지하지 못합니다.';
+        } else if (engineKey === ENGINES.PRETRAINED_RL) {
+          engineTag.textContent = '사전학습 RL 엔진';
+          engineTag.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-emerald-950 text-emerald-300 border border-emerald-500/40';
+          engineDescCard.innerHTML = '🏆 <strong class="text-emerald-300">사전학습 완료 RL 엔진 (학습 후)</strong>: 강화학습 100k 스텝으로 최적화된 정책. 18cm 전 선제적 도약각을 형성하고 최단 코너 탄젠트로 벽면 스침 0회 슬라롬을 주행합니다.';
+        } else {
+          engineTag.textContent = '생체 반사 엔진';
+          engineTag.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-amber-950 text-amber-300 border border-amber-500/30';
+          engineDescCard.innerHTML = '💡 <strong class="text-amber-300">생체 반사 규칙 엔진</strong>: 곤충 시각의 좌우 광학류 비대칭 억제로 장애물을 반사 회피하고, 도약턱 감지 시 직관적으로 상승합니다.';
+        }
+
+        // Update Scorecard
+        const stat = benchmarkStats[engineKey];
+        if (metricBumps) metricBumps.textContent = `${stat.bumps} 회`;
+        if (metricSpeed) metricSpeed.textContent = stat.speed;
+        if (metricRank) metricRank.textContent = stat.rank;
+        if (metricSuccess) metricSuccess.textContent = stat.successRate;
+
+        // Reset agent seamlessly from start position to see engine comparison clearly
+        resetAgent();
+      }
+
+      if (btnUntrained) btnUntrained.addEventListener('click', () => switchEngine(ENGINES.UNTRAINED));
+      if (btnBio) btnBio.addEventListener('click', () => switchEngine(ENGINES.BIO_REFLEX));
+      if (btnRL) btnRL.addEventListener('click', () => switchEngine(ENGINES.PRETRAINED_RL));
+
+      // FlyMind Panel Toggle
+      const telemetryPanel = document.getElementById('telemetry-panel');
+      const btnToggleFlymind = document.getElementById('btn-toggle-flymind-panel');
+      const btnCloseFlymind = document.getElementById('btn-close-flymind-panel');
+      const flymindBtnText = document.getElementById('flymind-panel-btn-text');
+
+      function toggleFlymindPanel() {
+        if (!telemetryPanel) return;
+        const isHidden = telemetryPanel.classList.contains('hidden');
+        if (isHidden) {
+          telemetryPanel.classList.remove('hidden');
+          if (btnToggleFlymind) {
+            btnToggleFlymind.className = 'glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-cyan-600 text-white border border-cyan-400/50 shadow-lg';
+          }
+          if (flymindBtnText) flymindBtnText.textContent = '신경망 패널 닫기';
+        } else {
+          telemetryPanel.classList.add('hidden');
+          if (btnToggleFlymind) {
+            btnToggleFlymind.className = 'glass-panel px-3.5 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700';
+          }
+          if (flymindBtnText) flymindBtnText.textContent = 'FlyMind 신경망 패널 열기';
+        }
+      }
+
+      if (btnToggleFlymind) btnToggleFlymind.addEventListener('click', toggleFlymindPanel);
+      if (btnCloseFlymind) btnCloseFlymind.addEventListener('click', toggleFlymindPanel);
+
+      const playPauseBtn = document.getElementById('play-pause-btn');
+      const playIcon = document.getElementById('play-icon');
+      const playText = document.getElementById('play-text');
+
+      playPauseBtn.addEventListener('click', () => {
+        isPaused = !isPaused;
+        if (isPaused) {
+          playIcon.textContent = '▶';
+          playText.textContent = '재개';
+          playPauseBtn.className = 'px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-emerald-900/40 flex items-center gap-1.5';
+        } else {
+          playIcon.textContent = '⏸';
+          playText.textContent = '일시정지';
+          playPauseBtn.className = 'px-3.5 py-1.5 bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold rounded-lg transition shadow-lg shadow-cyan-900/40 flex items-center gap-1.5';
+        }
+      });
+
+      document.getElementById('step-btn').addEventListener('click', () => {
+        isPaused = true;
+        playIcon.textContent = '▶';
+        playText.textContent = '재개';
+        simulationTime += 0.05;
+        updateSensingRadar();
+        stepRuleEngine(0.05);
+      });
+
+      document.getElementById('reset-btn').addEventListener('click', () => {
+        resetAgent();
+      });
+
+      document.getElementById('scenario-select').addEventListener('change', (e) => {
+        loadScenario(e.target.value);
+      });
+
+      const reseedBtn = document.getElementById('btn-reseed-hazards');
+      if (reseedBtn) {
+        reseedBtn.addEventListener('click', () => {
+          spawnRandomHazards(currentScenario);
+        });
+      }
+
+      document.getElementById('toggle-sensing-radius').addEventListener('change', (e) => {
+        if (radarRadiusSphere) radarRadiusSphere.visible = e.target.checked;
+        if (radarDiskMesh) radarDiskMesh.visible = e.target.checked;
+      });
+
+      document.getElementById('toggle-trail').addEventListener('change', (e) => {
+        if (trailLine) trailLine.visible = e.target.checked;
+      });
+
+      document.getElementById('toggle-ground-shadow').addEventListener('change', (e) => {
+        const gs = beeMasterGroup.userData.groundShadow;
+        if (gs && gs.group) gs.group.visible = e.target.checked;
+      });
+    });
+  </script>
+</body>
+</html>

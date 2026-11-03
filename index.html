@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Neural Simulation Playground</title>
+<link rel="stylesheet" href="assets/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="./src/ui/app.js"></script>
+<script src="./src/ui/auto-record.js"></script>
+</head>
+<body>
+<div id="scene" aria-label="3D Neural Flight Simulation Arena"></div>
+
+<!-- Compatibility anchor comments for automated test checks: 카메라 규칙 / 실험군 · 뉴런 제어 -->
+<section id="visionCard" class="glass vision-float" aria-label="Subject View Camera Preview">
+  <div class="card-title"><b id="visionTitle" data-i18n="visionTitle">실험체 뷰</b><span id="visionStatus">Ready</span><button id="visionMinimize" class="mini-btn" title="Minimize/Expand">▾</button></div>
+  <div id="visionBody">
+    <div class="vision-view-toggle" role="group" aria-label="Eye Camera Type">
+      <button type="button" id="eyeModeMono" class="selected" data-i18n="eyeMono">👁️ 단안 (Monocular)</button>
+      <button type="button" id="eyeModeBino" data-i18n="eyeBino">👀 양안 (Binocular L/R)</button>
+    </div>
+    <div class="vision-view-toggle sensor-sub-tabs" role="group" aria-label="Camera Obstacle Sensor Method" style="margin-bottom:5px">
+      <button type="button" class="cam-sensor-btn selected" data-sensor="fog_rgb" data-i18n="s1">① 안개-색상</button>
+      <button type="button" class="cam-sensor-btn" data-sensor="z_depth" data-i18n="s2">② Z-Depth</button>
+      <button type="button" class="cam-sensor-btn" data-sensor="optical_flow" data-i18n="s3">③ 광류(Flow)</button>
+      <button type="button" class="cam-sensor-btn" data-sensor="sensor_fusion" data-i18n="s4">④ 1+3 퓨전</button>
+    </div>
+    <div class="vision-image"><canvas id="visionFeed" width="320" height="180" aria-label="Subject View camera feed"></canvas><div id="visionGrid" class="vision-grid" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
+    <p id="visionCaption" class="vision-caption"><i class="mask-wall"></i>Wall <i class="mask-hazard"></i>Hazard <i class="mask-goal"></i>Goal · Segmented sensory input</p>
+    <div class="vision-readout"><span><em id="lblVLeft" data-i18n="vLeft">L</em> <b id="visionLeft">0%</b></span><span><em id="lblVFront" data-i18n="vFront">F</em> <b id="visionFront">0%</b></span><span><em id="lblVRight" data-i18n="vRight">R</em> <b id="visionRight">0%</b></span><span><em id="lblVUp" data-i18n="vUp">U</em> <b id="visionUp">0%</b></span><span><em id="lblVDown" data-i18n="vDown">D</em> <b id="visionDown">0%</b></span><span><em id="lblVUpperRoute" data-i18n="vUpperRoute">Top</em> <b id="visionUpperRoute">0%</b></span><span><em id="lblVLowerRoute" data-i18n="vLowerRoute">Bot</em> <b id="visionLowerRoute">0%</b></span><span><em id="lblVPitch" data-i18n="vPitch">Mode</em> <b id="visionVertical">Cruise</b></span></div>
+  </div>
+</section>
+
+<header class="glass header">
+  <div class="bee-mark">🧠</div>
+  <div class="brand">
+    <div>
+      <strong id="appTitle" data-i18n="appTitle">Neural Simulation Playground</strong>
+      <span id="appTag" class="tag" data-i18n="appTag">Male CNS v1.0</span>
+      <span id="fps" class="fps">—fps</span>
+    </div>
+    <small><span id="status">Camera vision &amp; neural circuit ready</span> · <span id="appSubtitle" data-i18n="appSubtitle">시각 입력 → 스파이킹 뉴런 → 3D 비행 제어</span></small>
+  </div>
+  <div class="header-actions">
+    <label class="language-control"><span class="sr-only">Language / 언어</span><select id="langSelect" class="lang-btn" aria-label="Language / 언어"><option value="en">English</option><option value="ko" selected>한국어</option></select></label>
+  </div>
+</header>
+
+<nav class="glass camera-bar" aria-label="Camera View and Studio Controls">
+  <button id="cameraOverview" class="selected" data-i18n="camOverview">🌐 3P Overview</button>
+  <button id="cameraCloseup" data-i18n="camCloseup">🔍 근접 뷰</button>
+  <button id="cameraFollow" data-i18n="camFollow">🚁 Smart Drone</button>
+  <button id="cameraTop" data-i18n="camTop">⬇ Top-Down</button>
+  <button id="cameraFace" data-i18n="camFace">😊 페이스 뷰</button>
+  <span class="nav-divider"></span>
+  <button id="beePanelToggle" class="bee-panel-toggle" data-i18n="customBee">🎨 캐릭터 선택</button>
+  <span class="nav-divider"></span>
+  <a href="pages/maze-editor.html" class="nav-studio-link amber-link" id="openMazeEditorLink" data-i18n="mazeStudio">🗺️ 미로 디자인</a>
+  <a href="pages/multilab.html" class="nav-studio-link cyan-link" id="openMultilabLink" data-i18n="multilab">🔬 멀티 실험실 (4병렬)</a>
+  <a href="pages/ax-compare.html" class="nav-studio-link cyan-link" id="openAxReportLink" data-i18n="axReport" target="_blank" rel="noopener">📊 AX 전후 비교</a>
+  <span class="nav-divider"></span>
+  <select id="lightingPresetSelect" class="nav-select" aria-label="Arena Lighting Preset" title="3D 챔버 조명 프리셋 (관찰자 화면 전용)">
+    <option value="default" selected data-i18n="lightDefault">💡 기본 연구실 조명</option>
+    <option value="studio" data-i18n="lightStudio">☀️ 밝은 입체 스튜디오</option>
+    <option value="neon" data-i18n="lightNeon">🌌 사이버 네온 + 헤드라이트</option>
+  </select>
+  <button id="togglePanel" class="panel-toggle" data-i18n="hidePanel">🧠 Hide Panel</button>
+</nav>
+
+<aside id="beePanel" class="glass bee-panel" aria-label="Character Design Settings" hidden>
+  <div class="card-title"><b id="beePanelTitle" data-i18n="wingTitle">🎨 캐릭터 스튜디오</b><button id="beePanelClose" class="icon-button" title="Close">×</button></div>
+  <div class="studio-section">
+    <label><span data-i18n="beeSubject">캐릭터</span> <b id="beeSubjectName">꿀벌</b></label>
+  </div>
+  <div class="studio-section">
+    <div class="studio-sec-head"><span id="lblWingScale" data-i18n="wingScale">🪶 날개 크기 조절 (Wing Size)</span><b id="wingScaleOut">83%</b></div>
+    <input id="wingScale" type="range" min="0.50" max="2.00" step="0.01" value="0.83">
+    <div class="studio-btn-row four">
+      <button type="button" class="bee-wing-preset active" data-scale="0.83" data-i18n="wingDefault">기본 (83%)</button>
+      <button type="button" class="bee-wing-preset" data-scale="1.00">100%</button>
+      <button type="button" class="bee-wing-preset" data-scale="1.20">120%</button>
+      <button type="button" class="bee-wing-preset" data-scale="1.40">140%</button>
+    </div>
+  </div>
+  <div class="studio-section">
+    <div class="studio-sec-head"><span id="lblEvadeCtrl" data-i18n="evadeTitle">⚡ 회피 기동 &amp; 장애물 충돌 테스트</span></div>
+    <div class="studio-btn-row two">
+      <button type="button" id="evadeLeftBtn" class="studio-act" data-i18n="evL">⬅️ 좌회피</button>
+      <button type="button" id="evadeRightBtn" class="studio-act" data-i18n="evR">➡️ 우회피</button>
+      <button type="button" id="evadeUpBtn" class="studio-act" data-i18n="evU">⬆️ 상승회피</button>
+      <button type="button" id="evadeDownBtn" class="studio-act" data-i18n="evD">⬇️ 하강회피</button>
+    </div>
+    <button type="button" id="beeCrashBtn" class="crash-btn" data-i18n="crash">💫 장애물 충돌 &amp; 빙글빙글 추락!</button>
+    <button type="button" id="beeBlackEyeBtn" class="studio-sub-btn" data-i18n="blackEye">👁️ 눈 하이라이트 끄기 (까만 눈 고정)</button>
+  </div>
+  <div class="studio-section">
+    <div class="studio-sec-head"><span id="lblWingPose" data-i18n="wingPose">🪽 날개 포즈 &amp; 속도</span><b id="wingAngleOut">35°</b></div>
+    <div class="studio-btn-row two">
+      <button type="button" class="bee-pose-btn active" data-pose="idle" data-i18n="poseIdle">기본 날갯짓</button>
+      <button type="button" class="bee-pose-btn" data-pose="up" data-i18n="poseUp">Wing Up (위로)</button>
+      <button type="button" class="bee-pose-btn" data-pose="flat" data-i18n="poseFlat">Wing Flat (수평)</button>
+      <button type="button" class="bee-pose-btn" data-pose="down" data-i18n="poseDown">Wing Down (아래)</button>
+    </div>
+    <label class="studio-slider"><span id="lblWingAngle" data-i18n="wingAngle">날개 각도 (고정 시)</span><input id="wingAngle" type="range" min="-55" max="75" step="1" value="35"></label>
+    <label class="studio-slider"><span id="lblFlapSpeed" data-i18n="flapSpeed">날갯짓 속도</span><b id="flapSpeedOut">1.0×</b><input id="flapSpeed" type="range" min="0.2" max="2.5" step="0.1" value="1.0"></label>
+  </div>
+  <div class="studio-section">
+    <div class="studio-sec-head"><span id="lblStyleSec" data-i18n="styleSec">🎨 외형 &amp; 재질 커스텀</span></div>
+    <label><span id="lblColorDepth" data-i18n="colorDepth">색감 깊이 (Color Depth)</span><b id="colorDepthOut">100%</b><input id="colorDepth" type="range" min="0.75" max="1.60" step="0.05" value="1.00"></label>
+    <label><span id="lblBeeColor" data-i18n="beeColor">몸 색상 (Body Color)</span> <input id="beeColor" type="color" value="#ffc04d"></label>
+    <label><span id="lblWingOpacity" data-i18n="wingOpacity">날개 투명도</span> <span id="wingOpacityOut">68%</span><input id="wingOpacity" type="range" min="20" max="95" value="68"></label>
+    <label><span id="lblSubWings" data-i18n="subWings">보조 날개 (Sub-wings)</span> <input id="subWings" type="checkbox" checked></label>
+    <label><span id="lblWallTransparency" data-i18n="wallOpacity">화면 벽 투명도</span> <span id="wallTransparencyOut">66%</span><input id="wallTransparency" type="range" min="10" max="85" value="66"></label>
+  </div>
+  <p id="beePanelNote" data-i18n="beeNote">근접 뷰에서 회피 기동·충돌 추락·날개 포즈를 관찰할 수 있습니다.</p>
+</aside>
+
+<aside id="beePreview" class="glass bee-preview" aria-label="Subject 3D Preview" hidden>
+  <div class="card-title"><b data-i18n="beePreview">🔍 캐릭터 미리보기</b></div>
+  <div id="beePreviewCanvas"></div>
+  <label class="preview-select"><span data-i18n="beeSubject">캐릭터</span> <select id="beeSubjectPreview"></select></label>
+</aside>
+
+<div class="glass zoom-bar" aria-label="Camera Zoom Controls">
+  <button id="zoomIn" title="Zoom In">＋</button><button id="zoomOut" title="Zoom Out">−</button><button id="zoomReset" title="Reset View">⌖</button>
+</div>
+
+<main id="dashboard" class="glass dashboard">
+  <div class="panel-head">
+    <div><small id="panelTag" data-i18n="panelLive">NEURAL CIRCUIT · LIVE</small><h1 id="panelTitle" data-i18n="panelTitle">Flight Circuit Monitor</h1><p id="graphInfo">Loading connectome...</p></div>
+    <button id="panelClose" class="icon-button" title="Collapse Panel">×</button>
+  </div>
+  <div class="panel-body">
+    <section class="card flight-overview">
+      <div class="card-title"><b id="lblFlightStatus" data-i18n="flightStatus">Flight Status</b><span id="flightState" class="flight-state-badge">Standby</span></div>
+      <div class="altitude"><span id="lblAltitude" data-i18n="altitude">Flight Altitude</span><b id="altitude">3.0 cm (Alt)</b><div class="altitude-scale"><i id="altBar"></i><u></u><u></u><u></u></div><small>0cm　　▲5cm　　▲10cm　　▲15cm　　20cm</small></div>
+      <div class="overview-grid"><div><small id="lblCamMode" data-i18n="camMode">Camera Mode</small><b id="cameraModeLabel">3P Overview</b></div><div><small id="lblObstacles" data-i18n="mazeObs">Maze Obstacles</small><b id="obstacleCount">—</b></div><div><small id="lblChamber" data-i18n="chamberSize">Chamber Size</small><b>100 × 100 × 20cm</b></div><div><small id="lblVertMode" data-i18n="vertMode">Vertical Control</small><b id="verticalModeLabel">Level Hold</b></div></div>
+    </section>
+    <section class="card engine-card">
+      <div class="card-title"><b id="lblCircuitCond" data-i18n="circuitCond">Circuit Experiment Condition</b><span class="live" data-i18n="liveBadge">LIVE</span></div>
+      <label class="mode-select"><span id="lblExpGroup" data-i18n="ctrlGroup">Controller Group</span><select id="controlMode"><option id="optCamera" value="camera" data-i18n="optCamera">Camera Rule (카메라 규칙)</option><option id="optNeurons" value="neurons" selected data-i18n="optNeurons">Experiment · Neuron Control (실험군 · 뉴런 제어)</option></select></label>
+      <label class="mode-select" style="margin-top:6px"><span id="lblVisionType" data-i18n="visionType">Sensory Camera Type</span><select id="visionTypeSelect"><option id="optVisionMono" value="monocular" selected data-i18n="optVMono">👁️ 단안 카메라 (Monocular 100° FOV)</option><option id="optVisionBino" value="binocular" data-i18n="optVBino">👀 양안 겹눈 (Binocular Compound L/R ±28°)</option></select></label>
+      <label class="mode-select" style="margin-top:6px"><span id="lblCameraSensor" data-i18n="sensorMethod">카메라 장애물 인식 기법 (Sensor Method)</span><select id="cameraSensorSelect"><option id="optSensorFog" value="fog_rgb" selected data-i18n="optFog">① 1-Pass 안개-색상 분할 (Fog-RGB 기본)</option><option id="optSensorDepth" value="z_depth" data-i18n="optDepth">② 하드웨어 선형 Z-Depth (바닥·천장 필터링)</option><option id="optSensorFlow" value="optical_flow" data-i18n="optFlow">③ 시공간 광류 + 에지 확장 (Optical Flow)</option><option id="optSensorFusion" value="sensor_fusion" data-i18n="optFusion">④ 1+3 하이브리드 센서 퓨전 (RGB+Flow)</option></select></label>
+      <label id="neuronRuleRow" class="mode-select" style="margin-top:6px"><span id="lblNeuronRule" data-i18n="neuronRule">뉴런/학습 규칙 (SNN Rule)</span><select id="neuronRuleSelect"><option id="optRuleLif" value="lif_baseline" selected data-i18n="optLIF">기준 구현 · Standard LIF + 3-Factor STDP</option><option id="optRuleAlif" value="alif_surrogate" data-i18n="optALIF">제안 모델 · ALIF + Surrogate R-STDP + Meta Explore</option></select></label>
+      <!-- LEARN-OFF 2026-10-30: learning weights disabled stage-wide (revert: remove hidden) -->
+      <label class="switch-row" hidden><span><b id="lblLearning" data-i18n="learning">Reward Learning</b><small id="lblLearningDesc" data-i18n="learningDesc">자격흔적 게인 조정</small></span><input id="learning" type="checkbox"><em></em></label>
+      <label class="switch-row"><span><b id="lblResetCircuit" data-i18n="resetCircuit">Full Reset Every Run</b><small id="lblResetCircuitDesc" data-i18n="resetCircuitDesc">Run마다 회로·학습값 초기화</small></span><input id="resetCircuit" type="checkbox"><em></em></label>
+      <div class="compact-controls">
+        <label><span id="lblSpeed" data-i18n="speed">Speed</span> <span><output id="speedOut">12</output> cm/s</span><input id="speed" type="range" min="8" max="16" step="1" value="12"></label>
+        <label><span id="lblSensitivity" data-i18n="visionGain">Vision Gain</span> <span><output id="rangeOut">1.0</output>×</span><input id="range" type="range" min="5" max="20" step="1" value="10"></label>
+        <label hidden><span id="lblLearnRate" data-i18n="learnRate">Learning Rate</span> <span><output id="rateOut">0.012</output></span><input id="rate" type="range" min="0" max="0.05" step="0.001" value="0.012"></label>
+        <label><span id="lblTimeLimit" data-i18n="timeLimit">Episode Time Limit</span> <span><output id="timeLimitOut">120</output> s</span><input id="timeLimit" type="range" min="60" max="180" step="15" value="120"></label>
+        <label><span id="lblPenalty" data-i18n="penalty">Collision Penalty</span> <span>−<output id="penaltyOut">1.5</output> <span data-i18n="penaltyUnit">pt · 0.38s stun</span></span><input id="collisionPenalty" type="range" min="0.5" max="3.0" step="0.25" value="1.5"></label>
+      </div>
+      <div class="weights-box" hidden><!-- LEARN-OFF: gains grid + explore/exploit + pretrained/load/save hidden -->
+        <div class="weights-head"><span id="lblWeightsTitle" data-i18n="weightsTitle">학습 가중치 (Readout Gains)</span><small id="gainUpdatesOut">Updates: 0</small></div>
+        <div class="gains-grid">
+          <span><em>L</em><b id="gainLeftOut">1.0000</b></span>
+          <span><em>R</em><b id="gainRightOut">1.0000</b></span>
+          <span><em>Up</em><b id="gainClimbOut">1.0000</b></span>
+          <span><em>Dn</em><b id="gainDiveOut">1.0000</b></span>
+        </div>
+        <div id="alifMetricsBox" style="margin-top:8px;padding-top:7px;border-top:1px solid rgba(125,211,252,.16);font-size:var(--fs-11)">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px;color:#93c5fd">
+            <span id="lblTradeoffTitle" data-i18n="tradeoffTitle">⚖️ Explore / Exploit &amp; 충돌 지수</span>
+            <b id="collisionIdxOut" style="color:#fda4af">Coll Idx: 0.00</b>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px">
+            <small style="color:#fcd34d;min-width:68px" id="explorePctOut">Explore 5%</small>
+            <div style="flex:1;height:6px;background:rgba(16,185,129,.28);border-radius:4px;overflow:hidden">
+              <div id="exploreBar" style="width:5%;height:100%;background:linear-gradient(90deg,#f59e0b,#38bdf8)"></div>
+            </div>
+            <small style="color:#6ee7b7;min-width:68px;text-align:right" id="exploitPctOut">Exploit 95%</small>
+          </div>
+        </div>
+        <div class="weights-actions">
+          <button type="button" id="loadPretrainedBtn" class="wide accent-btn" data-i18n="pretrained">⚡ 사전 학습 가중치 시연 적용 (pretrained)</button>
+          <div class="weights-row">
+            <button type="button" id="loadWeightsFileBtn" class="wide subdued" data-i18n="loadW">📂 가중치 JSON 열기</button>
+            <button type="button" id="saveWeightsBtn" class="wide subdued" data-i18n="saveW">💾 현재 가중치 저장</button>
+          </div>
+          <input id="weightsFileInput" type="file" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div class="seed-row"><label id="lblSeed" for="seed" data-i18n="seed">Random Seed</label><input id="seed" type="number" value="20261026" min="1"></div>
+      <button id="learnReset" class="wide subdued" data-i18n="resetGains" hidden>Reset Gains Now</button>
+    </section>
+    <section class="metric-grid">
+      <div><small id="lblCollisions" data-i18n="mCollisions">Collisions</small><b id="collisions">0</b></div><div><small id="lblProgress" data-i18n="mProgress">Goal Progress</small><b id="progress">0%</b></div>
+      <div><small id="lblElapsed" data-i18n="mElapsed">Elapsed Time</small><b id="elapsed">0.0s</b></div><div><small id="lblReward" data-i18n="mReward">Total Reward</small><b id="reward">0.00</b></div>
+    </section>
+    <section class="card neural-card">
+      <div class="card-title"><b id="neuralPanelTitle" data-i18n="neuralTitle">Neural Activity · Experiment</b><span id="neuronCount" class="minor">0 spikes/frame</span></div>
+      <div class="stage-labels"><span id="lblStage1" data-i18n="st1">1) Visual L/R &amp; U/D</span><span id="lblStage2" data-i18n="st2">2) Descending (DN)</span><span id="lblStage3" data-i18n="st3">3) VNC Motor</span></div>
+      <canvas id="brain" width="380" height="160"></canvas>
+      <div class="firing-title"><b id="lblActiveNeurons" data-i18n="activeNeurons">Active Neurons</b><span id="lblFiringRate" data-i18n="firingRate">Firing Rate</span></div>
+      <div id="activeNodes" class="active-nodes"><span>Start flight to inspect live neuron spikes</span></div>
+      <div class="stream-title"><b id="lblSignalStream" data-i18n="signalStream">Live Sensory &amp; Motor Stream</b><span id="lblRecentWindow" data-i18n="recentWindow">Recent Window</span></div>
+      <div class="activity-legend"><span><i class="vision-dot"></i><em id="lblLegVision" data-i18n="legVision">Visual Input</em></span><span><i class="turn-dot"></i><em id="lblLegTurn" data-i18n="legTurn">Yaw Turn</em></span><span><i class="vertical-dot"></i><em id="lblLegVert" data-i18n="legVert">Pitch Climb/Dive</em></span></div>
+      <canvas id="signalGraph" width="380" height="64" aria-label="Recent history of visual input, yaw turn, and vertical pitch"></canvas>
+    </section>
+    <section class="card fire-card">
+      <div class="card-title"><b data-i18n="fireTitle">뉴런 발화 경로</b><span id="fireState" class="minor"></span></div>
+      <div class="fire-sec"><span class="fire-h" data-i18n="fireVisual">① 좌우 시력</span>
+        <div class="fire-row"><em>L</em><i><u id="fireVisL"></u></i><b id="fireVisLv">0</b></div>
+        <div class="fire-row"><em>R</em><i><u id="fireVisR"></u></i><b id="fireVisRv">0</b></div>
+        <div class="fire-row"><em data-i18n="fireUp">상</em><i><u id="fireVisU"></u></i><b id="fireVisUv">0</b></div>
+        <div class="fire-row"><em data-i18n="fireDown">하</em><i><u id="fireVisD"></u></i><b id="fireVisDv">0</b></div>
+        <small class="note" data-i18n="fireVisualNote">상하는 상/하 시각뉴런군이 담당 (모터 아님)</small>
+      </div>
+      <div class="fire-sec"><span class="fire-h" data-i18n="fireDn">② 하행경로 (DN)</span>
+        <div class="fire-row"><em>L</em><i><u id="fireDnL"></u></i><b id="fireDnLv">0</b></div>
+        <div class="fire-row"><em>R</em><i><u id="fireDnR"></u></i><b id="fireDnRv">0</b></div>
+        <div id="fireDnList" class="fire-list"></div>
+        <small class="note" data-i18n="fireDnLegend">DNp03·06 충돌회피 / DNa 조향 / DNb01 반대측 억제</small>
+      </div>
+      <div class="fire-sec"><span class="fire-h" data-i18n="fireMotor">③ VNC 운동 (좌우)</span>
+        <div class="fire-row"><em>L</em><i><u id="fireMoL"></u></i><b id="fireMoLv">0</b></div>
+        <div class="fire-row"><em>R</em><i><u id="fireMoR"></u></i><b id="fireMoRv">0</b></div>
+        <div id="fireMotorList" class="fire-list"></div>
+      </div>
+    </section>
+    <section class="card output-card">
+      <div class="card-title"><b id="lblOutputCard" data-i18n="outputCard">Maneuver Output</b><span><em id="lblYaw" data-i18n="yaw">Yaw</em> <i id="turnValue" class="turn-value">0.000</i> · <i id="verticalValue" class="turn-value">Cruise</i></span></div>
+      <div class="outputs">
+        <div><span id="lblOLeft" data-i18n="oLeft">Turn L</span><i><u id="oLeft"></u></i><b id="vLeft">0%</b></div>
+        <div><span id="lblORight" data-i18n="oRight">Turn R</span><i><u id="oRight"></u></i><b id="vRight">0%</b></div>
+        <div><span id="lblOUp" data-i18n="oUp">Climb</span><i><u id="oUp"></u></i><b id="vUp">0%</b></div>
+        <div><span id="lblODown" data-i18n="oDown">Dive</span><i><u id="oDown"></u></i><b id="vDown">0%</b></div>
+      </div>
+      <p id="lblOutputNote" class="note" data-i18n="outputNote">Male CNS 시각·하행·VNC 운동 경로의 스파이크 활동이 4방향 조종을 구동합니다.</p>
+    </section>
+    <section class="card exp-card" hidden><!-- dev-only: smoke + JSON export hidden for public demo -->
+      <div class="card-title"><b id="lblExpCard" data-i18n="expCard">Experiment (FR-06/07)</b><span>v1.0</span></div>
+      <div class="exp-row"><button id="smokeBtn" class="wide subdued" data-i18n="smokeBtn">🧪 Smoke 60-step</button><button id="expBtn" class="wide subdued" data-i18n="expBtn">⬇ experiment JSON</button></div>
+      <div class="mono" id="expOut">finish an episode to generate experiment_result.json</div>
+    </section>
+  </div>
+</main>
+
+<div class="glass bottom-bar">
+  <div class="bottom-group primary-controls"><button id="runBtn" class="small-button primary" data-i18n="run">▶ Start</button><button id="stepBtn" class="small-button" data-i18n="step">⏭ Step</button><button id="agentReset" class="small-button" data-i18n="reset">↺ Reset</button><select id="simSpeed" class="small-button" aria-label="Simulation speed"><option value="1" selected>1x</option><option value="2">2x</option><option value="3">3x</option></select><button id="recBtn" class="small-button recbtn" title="녹화">●</button><button id="tabRecBtn" class="small-button recbtn" title="화면 녹화">● 화면</button></div>
+  <div class="bottom-group map-controls"><label id="lblMazeSelect" for="scenario" data-i18n="maze">3D Maze</label><select id="scenario"></select></div>
+  <div class="bbreak" aria-hidden="true"></div>
+  <button id="btnShuffle" class="small-button" data-i18n="shuffle">🔀 장애물 재배치</button>
+  <button id="btnNoHazards" class="small-button amber">✅ 장애물 넣기</button>
+  <div class="bottom-group toggles"><label><input id="movingObstacles" type="checkbox" checked><span data-i18n="movingObs">Moving Obstacles</span></label></div>
+  <div class="bottom-group toggles"><label><input id="toggleSensingRadius" type="checkbox"><span id="lblToggleSense" data-i18n="tglGrid">Sensor Range</span></label><label><input id="toggleTrail" type="checkbox" checked><span id="lblToggleTrail" data-i18n="tglTrail">Trail</span></label><label><input id="toggleGroundShadow" type="checkbox" checked><span id="lblToggleShadow" data-i18n="tglShadow">바닥 그림자</span></label></div>
+</div>
+<div id="errOverlay"></div>
+</body>
+</html>

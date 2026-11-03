@@ -1,0 +1,14 @@
+# NSP3D experiment harness (python/, local-only): stdlib + ax-platform.
+# Do NOT add packages here unless the harness actually imports them.
+#
+# Phase 3 (in use since 2026-10-31): adaptive experiment optimization.
+# Verified pins (laptop 2026-11-01, desktop container mirrors them):
+ax-platform==1.3.1  # used by the local-only Ax study loop (AxClient)
+botorch==0.18.1     # transitive via ax-platform (pinned for study parity)
+gpytorch==1.15.2    # transitive via botorch (pinned for study parity)
+# playwright: deliberately NOT installed on the pip side — browser driving
+# reuses the Node harness instead: python/trial.cjs + playwright-core,
+# declared in package.json (npm install). Same pin as the desktop worker.
+#
+# spikingjelly NOT used; torch arrives only as an ax-platform dependency.
+# The SNN itself is custom JavaScript (src/nn/graph-network.js).

@@ -1,0 +1,1428 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSP3D Multi-Lab — 4 parallel experiments</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #060914; color: #e8eef7; font: var(--fs-11)/1.42 Inter,"Segoe UI",system-ui,sans-serif; overflow: auto; user-select: text; touch-action: auto; }
+  header.header { position: static; width: auto; margin: 12px 12px 0; }
+  header .brand { flex: 0 1 auto; }
+  header .header-actions { margin-left: 12px; }
+  .home-link { padding: 6px 8px; }
+  .home-link svg { display: block; }
+  #labRes { min-width: 96px; text-align: center; }
+  main { padding: 12px; }
+  .panel { background: rgba(12,22,37,.95); border: 1px solid #26364b; border-radius: 12px; padding: 9px; margin-bottom: 12px; }
+  .panel h2 { font-size: var(--fs-14); font-weight: 700; margin: 0 0 7px; color: inherit; }
+  #kpiStrip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)) auto; gap: 5px; margin-bottom: 12px; }
+  @media (max-width: 760px) { #kpiStrip { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  #labLayout { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 12px; align-items: start; }
+  #labSide { position: sticky; top: 12px; max-height: calc(100vh - 24px); display: flex; flex-direction: column; overflow: hidden; border-radius: 17px; border-color: rgba(56,189,248,.38); }
+  #labSide .panel-head { padding: 6px 11px; }
+  #labSide .panel-head h1 { font-size: var(--fs-11); font-weight: 400; color: #8799ad; margin: 0; }
+  #optPanel { min-height: 0; }
+  @media (max-width: 1100px) { #labLayout { grid-template-columns: 1fr; } #labSide { position: static; max-height: none; } }
+  .kpi { background: #0b1626; border: 1px solid #26364b; border-radius: 9px; padding: 6px 4px; text-align: center; }
+  .kpi.best { border-left: 3px solid #f5b942; }
+  .kpi .kl { font-size: var(--fs-11); color: #8799ad; }
+  .kpi .kv { font-size: var(--fs-14); font-weight: 700; font-family: ui-monospace, monospace; color: #72d8e9; font-variant-numeric: tabular-nums; }
+  #kpiBest { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .ks { font-size: var(--fs-11); color: #8296ad; font-variant-numeric: tabular-nums; }
+  .kpi.live .kv { color: #64e4bb; }
+  .pulse { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #64e4bb; margin-right: 6px; animation: pls 1.2s infinite; }
+  @keyframes pls { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+  .slot .sprog { height: 4px; background: #243348; border-radius: 5px; overflow: hidden; margin-top: 8px; }
+  .slot .sprog i { display: block; height: 100%; width: 0; background: #36c7d9; }
+  .slot .smeta { display: flex; justify-content: space-between; font-family: ui-monospace, monospace; font-size: var(--fs-11); color: #c4d2e0; font-variant-numeric: tabular-nums; margin: 6px 0 0; }
+  .sbadge { font-size: var(--fs-11); padding: 2px 6px; border-radius: 999px; border: 1px solid transparent; white-space: nowrap; margin-left: auto; }
+  .sbadge:empty { display: none; }
+  .sbadge.run { color: #64e4bb; font-weight: 800; border-color: #17644d; background: #082b24; box-shadow: 0 0 12px rgba(100,228,187,.55); animation: pls 1.6s infinite; }
+  .sbadge.done { color: #73d9e8; background: #092733; border-color: #176274; }
+  .sdot { flex: none; width: 7px; height: 7px; border-radius: 50%; }
+  .sdot.idle { background: #8799ad; }
+  .sdot.run { background: #64e4bb; animation: pls 1.6s infinite; }
+  .sdot.done { background: #38bdf8; }
+  .sdesc { border-radius: 6px; padding: 5px 8px; color: #e8eef7; font-size: var(--fs-11); margin-bottom: 7px; line-height: 1.45; border: 1px solid; }
+  #estLine { font-size: var(--fs-11); color: #9cb4ca; margin-top: 5px; background: #081220; border: 1px solid #22384f; border-radius: 9px; padding: 5px 8px; }
+  #estLine:empty { display: none; }
+  #labFooter { margin-top: 12px; padding: 8px 4px; border-top: 1px solid #243246; font-size: var(--fs-11); color: #71859a; display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+  .sbar { display: grid; grid-template-columns: 220px 1fr 64px; gap: 6px; align-items: center; margin: 4px 0; font-size: var(--fs-11); }
+  .sbar .track { height: 12px; background: #243348; border-radius: 6px; overflow: hidden; }
+  .sbar .fill { height: 100%; background: #36c7d9; }
+  .sbar .pc { text-align: right; font-variant-numeric: tabular-nums; }
+  #donutWrap { display: flex; gap: 14px; align-items: center; margin: 7px 0; }
+  #failDonut { width: 110px; height: 110px; }
+
+  .combo .atitle { flex: none; width: 22px; height: 22px; display: grid; place-items: center; font-size: var(--fs-11); font-weight: 800; border-radius: 6px; background: #112236; border: 1px solid #27425e; color: #9cc2db; }
+  .combo .abox { flex: 1; border-radius: 6px; padding: 5px 8px; color: #e8eef7; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .combo.empty { padding: 3px 8px; }
+  .combo.empty .atitle { opacity: .45; width: 18px; height: 18px; border-radius: 5px; }
+  .combo.empty .abox { padding: 2px 8px; }
+  .combo .abox.empty { background: transparent; border: none; color: #5f7285; text-align: center; }
+  .combo .adot { flex: none; width: 6px; height: 6px; border-radius: 50%; }
+  .smini { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-top: 6px; }
+  .smini > div { background: #0b1626; border: 1px solid #26364b; border-radius: 9px; padding: 6px 4px; text-align: center; }
+  .smini small { display: block; font-size: var(--fs-11); color: #8799ad; }
+  .smini b { font-family: ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: var(--fs-14); color: #72d8e9; }
+  .rankdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 4px; vertical-align: baseline; }
+  .sticky-run { position: sticky; bottom: 0; background: none; padding: 0 0 2px; display: flex; flex-direction: column; gap: 5px; }
+  .run-row { display: flex; gap: 6px; align-items: center; }
+  .run-row.main > button { flex: 1; }
+  .run-row.sub > label { display: flex; align-items: center; gap: 4px; margin: 0; white-space: nowrap; }
+  .run-row.sub > #recTime { margin-left: auto; min-width: 34px; text-align: right; font-size: var(--fs-11); color: #9cb4ca; font-variant-numeric: tabular-nums; }
+  #runBtn { flex: 2; height: 44px; font-size: var(--fs-13); }
+  #stopBtn { flex: 1; height: 44px; margin-top: 0; }
+  #runBtn.running { opacity: 1; animation: runpulse 1.2s ease-in-out infinite; }
+  @keyframes runpulse { 50% { box-shadow: 0 0 14px rgba(40,200,220,.85); filter: brightness(1.3); } }
+  .exp-actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px; }
+  .exp-actions button { flex: 0 0 auto; width: auto; margin-top: 0; white-space: nowrap; }
+  #autoDl { width: 12px; height: 12px; accent-color: #38bdf8; }
+  #optPanel { display: grid; gap: 5px; align-content: start; }
+  #optPanel .card { padding: 7px; }
+  #comboCount { font-family: ui-monospace, monospace; font-size: var(--fs-11); padding: 4px 7px; border-radius: 999px; color: #62e5b2; background: #062a24; border: 1px solid #126b52; letter-spacing: 0; white-space: nowrap; }
+  #labSide .side-counts { font-size: var(--fs-11); color: #9cb4ca; white-space: nowrap; }
+  #optPanel .row label { font-size: var(--fs-11); color: #9cafc1; }
+  #optPanel input[type=number] { width: 92px; padding: 4px 6px; border-radius: 6px; background: #07111f; border: 1px solid #2b3c50; color: inherit; font: inherit; }
+  #comboFilters { display: grid; gap: 3px; margin-bottom: 4px; }
+  .fgroup { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; background: #0a1423; border: 1px solid #25354b; border-radius: 9px; padding: 4px; }
+  .fgroup.single { flex-direction: column; align-items: stretch; gap: 3px; }
+  .frow { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+  .frow.sensors { flex-wrap: nowrap; gap: 3px; }
+  .frow.sensors .fchip { flex: 1 1 0; min-width: 0; padding: 3px 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .fdiv { border-top: 1px solid #1f3043; }
+  .fsep { width: 0; align-self: stretch; border-left: 1px solid #1f3043; margin: 2px 3px 2px auto; }
+  .flab { font-size: var(--fs-11); color: #9cafc1; }
+  .fchip { font-size: var(--fs-11); padding: 5px 8px; border-radius: 9px; border: 1px solid transparent; background: #101c2d; color: #b9c6d5; cursor: pointer; }
+  .fchip.sel { background: #087da0; color: #fff; border-color: #28b8d4; box-shadow: 0 5px 15px #003d5977; }
+  #comboGrid { display: grid; grid-template-columns: 1fr; gap: 7px; }
+  .combo { position: relative; display: flex; align-items: center; gap: 6px; font-size: var(--fs-11); text-align: left; padding: 7px 8px; border-radius: 0; border: none; background: transparent; color: #e8eef7; line-height: 1.5; }
+  .combo.sel { border: none; background: transparent; }
+  .pick-actions { display: flex; gap: 4px; flex-wrap: nowrap; margin: 4px 0 0; }
+  .pick-actions .wide { flex: 1; width: auto; margin-top: 0; white-space: nowrap; }
+  #pickMsg { font-size: var(--fs-11); color: var(--amber); min-height: 15px; margin-top: 4px; }
+  #pickMsg:empty { display: none; }
+  #mazeCards { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-bottom: 5px; }
+  .maze-card { border: 1px solid #23364d; border-radius: 10px; overflow: hidden; cursor: pointer; background: rgba(10,20,35,.88); padding: 0; text-align: left; }
+  .maze-card.sel { border-color: #35bfd5; box-shadow: 0 0 0 1px #35bfd5; }
+  .maze-card img { width: 100%; height: 64px; object-fit: cover; display: block; background: #030916; }
+  .maze-card span { display: block; font-size: var(--fs-11); padding: 3px 6px; color: #e8eef7; }
+  .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin-bottom: 7px; }
+  label { color: #9cafc1; font-size: var(--fs-11); }
+  button.k { padding: 1px 7px; font-size: var(--fs-11); }
+  table { border-collapse: collapse; width: 100%; font-size: var(--fs-11); }
+  th, td { text-align: right; padding: 4px 2px; border-bottom: 1px solid #27374b; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: #91a3b8; font-weight: 400; }
+  tr.best td { color: #fcd676; font-weight: 700; }
+  /* recBtn uses shared .recbtn from ../assets/style.css (same style as main page). */
+  #log { max-height: 160px; }
+  #errOverlay { display: none; background: #4a1620; color: #ffd7dc; padding: 8px 12px; font-size: var(--fs-11); white-space: pre-wrap; }
+  #slotGrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+  @media (max-width: 760px) { #slotGrid { grid-template-columns: 1fr; } }
+  .slot { background: rgba(12,22,37,.95); border: 1px solid #26364b; border-left-width: 3px; border-radius: 12px; padding: 9px; }
+  .slot.active { border-color: #28b8d4; box-shadow: 0 5px 15px #003d5977; }
+  .slot .shead { display: flex; align-items: center; gap: 6px; margin-bottom: 7px; }
+  .slot .stitle { font-size: var(--fs-14); font-weight: 700; color: #e8eef7; white-space: nowrap; }
+  .slot .sstat { font-size: var(--fs-11); color: #9caec1; margin-top: 6px; font-variant-numeric: tabular-nums; min-height: 15px; }
+  .slot .sview { margin-top: 8px; }
+  .slot canvas.view { width: 100%; height: auto; display: block; border-radius: 8px; background: #030916; border: 1px solid #24435a; box-sizing: border-box; }
+  .slot canvas.strip { width: 100%; height: 54px; display: block; border-radius: 7px; background: #030916; border: 1px solid rgba(56,189,248,.2); margin-top: 6px; box-sizing: border-box; }
+  .slot.off { opacity: .45; }
+
+  .note { font-size: var(--fs-11); line-height: 1.45; color: #71869d; margin: 7px 0 0; }
+  .legend { display: flex; gap: 9px; font-size: var(--fs-11); color: #90a5bb; margin-top: 4px; }
+  .legend i { display: inline-block; width: 18px; height: 3px; vertical-align: middle; margin-right: 4px; }
+  .legend em { font-style: normal; }
+  #aggOut td:nth-child(2), #aggOut th:nth-child(2), #aggOut td:nth-child(3), #aggOut th:nth-child(3) { text-align: left; }
+  #sessOut td:nth-child(3), #sessOut th:nth-child(3), #sessOut td:nth-child(4), #sessOut th:nth-child(4) { text-align: left; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%) translateY(20px); background: rgba(8,20,34,.96); border: 1px solid #2b6cb0; color: #e8eef7; padding: 10px 16px; border-radius: 12px; font-size: var(--fs-13); opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 50; max-width: min(560px, calc(100vw - 32px)); text-align: center; }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="errOverlay"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<header class="glass header">
+  <div class="bee-mark">🧠</div>
+  <div class="brand">
+    <div>
+      <strong id="appTitle" data-i18n="appTitle">Neural Simulation Playground</strong>
+      <span class="tag" data-i18n="mlabRoom">멀티룸</span>
+    </div>
+    <small data-i18n="mlabSub">4 parallel flights · corridor · no hazards · same engine as batch runner</small>
+  </div>
+  <div class="header-actions">
+    <a id="homeLink" class="nav-studio-link cyan-link home-link" href="../index.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg></a>
+    <label class="language-control"><span class="sr-only">Language / 언어</span><select id="langSelect" class="lang-btn" aria-label="Language / 언어"><option value="en">English</option><option value="ko" selected>한국어</option></select></label>
+    <span class="fps" id="labRes">—</span>
+  </div>
+</header>
+<main>
+  <div id="kpiStrip">
+    <div class="kpi"><div class="kl" data-i18n="mlabKpiSucc">success rate</div><div class="kv" id="kpiSucc">—</div><div class="ks" id="kpiSuccS"></div></div>
+    <div class="kpi"><div class="kl" data-i18n="mlabKpiTime">avg time</div><div class="kv" id="kpiTime">—</div><div class="ks" id="kpiTimeS"></div></div>
+    <div class="kpi"><div class="kl" data-i18n="mlabKpiColl">collisions/run</div><div class="kv" id="kpiColl">—</div><div class="ks" id="kpiCollS"></div></div>
+    <div class="kpi best"><div class="kl" data-i18n="mlabKpiBest">best config</div><div class="kv" id="kpiBest">—</div><div class="ks" id="kpiBestS"></div></div>
+    <div class="kpi live"><div class="kl" data-i18n="mlabKpiLive">live</div><div class="kv" id="kpiLive">—</div><div class="ks" id="kpiLiveS"></div></div>
+  </div>
+  <div id="optPanel" class="panel-body">
+    <section class="card">
+      <div id="comboFilters"></div>
+      <div id="comboGrid"></div>
+      <div class="row pick-actions">
+        <button id="clearQueue" class="wide subdued" data-i18n="mlabClearQ">Clear</button>
+      </div>
+      <div id="pickMsg"></div>
+    </section>
+    <section class="card">
+      <div id="mazeCards"></div>
+      <div class="row" style="margin-bottom:0">
+        <label><span data-i18n="mlabRuns">runs each</span> <input id="runsIn" type="number" value="2" min="1" max="20" style="width:64px"></label>
+        <label><span data-i18n="mlabSeed">seed</span> <input id="seedIn" type="number" value="20261030" style="width:110px"></label>
+      </div>
+    </section>
+    <section class="card">
+      <div class="sticky-run">
+        <div class="run-row main">
+          <button id="runBtn" class="primary" data-i18n="mlabRunBtn">Run</button>
+          <button id="stopBtn" class="crash-btn" data-i18n="mlabStop" disabled>Stop</button>
+        </div>
+        <div class="run-row sub">
+          <label><span data-i18n="mlabSpeed">속도</span> <select id="simSpeed" aria-label="Simulation speed"><option value="1">1x</option><option value="2" selected>2x</option><option value="3">3x</option></select></label>
+          <button id="recBtn" class="small-button recbtn" title="슬롯 녹화">●</button><span id="recTime" class="mono"></span>
+        </div>
+      </div>
+      <div id="estLine"></div>
+    </section>
+  </div>
+  <div id="slotGrid"></div>
+  <div class="legend"><span><i style="background:#fb7185"></i><em data-i18n="mlabLegF">front threat</em></span><span><i style="background:#f5b942"></i><em data-i18n="mlabLegTurn">turn</em></span><span><i style="background:#38bdf8"></i><em data-i18n="mlabLegClimb">climb</em></span></div>
+  <div class="panel" style="margin-top:12px">
+    <h2 data-i18n="mlabReward">Reward trails</h2>
+    <canvas id="rewCanvas" width="900" height="120" style="width:100%;height:auto;display:block;background:#030916;border:1px solid rgba(56,189,248,.2);border-radius:7px"></canvas>
+    <div class="note" id="rewNote"></div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <h2 data-i18n="mlabAgg">Aggregate (all slots)</h2>
+    <div id="aggOut" class="note">waiting for runs…</div>
+  </div>
+  <div class="panel">
+    <h2 data-i18n="mlabAnalysis">Result analysis</h2>
+    <div id="analysisOut" class="note">waiting for runs…</div>
+  </div>
+  <div class="panel">
+    <h2 data-i18n="mlabRunBars">Per-run bars</h2>
+    <canvas id="runBars" width="900" height="160" style="width:100%;height:auto;display:block;background:#030916;border:1px solid rgba(56,189,248,.2);border-radius:7px"></canvas>
+    <div class="note" id="runBarsNote"></div>
+  </div>
+  <div class="panel">
+    <h2 data-i18n="mlabDist">Distributions</h2>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><div class="note" data-i18n="mlabHist">Elapsed histogram</div><canvas id="histCanvas" width="440" height="170" style="width:100%;height:auto;display:block;background:#030916;border:1px solid rgba(56,189,248,.2);border-radius:7px"></canvas></div>
+      <div><div class="note" data-i18n="mlabScatter">Path efficiency</div><canvas id="scatCanvas" width="440" height="170" style="width:100%;height:auto;display:block;background:#030916;border:1px solid rgba(56,189,248,.2);border-radius:7px"></canvas></div>
+    </div>
+  </div>
+  <div class="panel">
+    <h2 data-i18n="mlabSess">Saved sessions (IndexedDB · same options+seed+runs overwrites, no duplicates)</h2>
+    <div id="sessOut" class="note">loading…</div>
+    <div class="row" style="margin-top:7px">
+      <label><input id="autoDl" type="checkbox"> <span data-i18n="mlabAutoDl">Auto-download files on finish (local use)</span></label>
+    </div>
+    <div class="note" data-i18n="mlabAutoDlNote">Browser may ask permission for multiple downloads once — allow it to receive json+log+csv together.</div>
+    <div class="row exp-actions">
+      <button id="expAllJson" data-i18n="mlabExpJson">Export all results.json</button>
+      <button id="expAllLog" data-i18n="mlabExpLog">Export all flight_log.jsonl</button>
+      <button id="expAllCsv" data-i18n="mlabExpCsv">Export all results.csv</button>
+      <button id="clearDb" class="crash-btn" data-i18n="mlabClearDb">Clear DB</button>
+    </div>
+  </div>
+  <footer id="labFooter"><span id="footL"></span><span id="footR"></span></footer>
+  <div class="panel">
+    <h2 data-i18n="mlabLog">Log</h2>
+    <div id="log" class="mono">
+</div>
+  </div>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD, CAMERA_PIPELINE, NSP3D_VERSION, dateSeed } from '../src/config.js';
+import { DECODER_BUILD } from '../src/vision/camera-vision.js';
+import { createFlightConnectome, mergeFlightGraphs, SNN_BUILD } from '../src/nn/graph-network.js';
+import { senseVision, createCameraRuleController, CONTROLLER_BUILD } from '../src/sim/camera-controller.js';
+import { decayTouch, isStalled } from '../src/sim/flight-physics.js';
+import { consumeSteps, SIM_STEP_H } from '../src/sim/step-clock.js';
+import {
+  W, Y, Z, clamp, makeWorld, advanceWorld, buildStaticScene,
+  buildObstacleMesh, clearWorld, EyeRig, createFlightState, movement,
+} from '../src/sim/sim-core.js';
+import { createBee } from '../src/ui/hand-drawn-bee.js';
+import { initLang, setLang, getLang, t } from '../src/ui/i18n.js';
+import { recFilename, recElapsed, recCapped } from '../src/ui/rec-filename.js';
+import { saveArtifact } from '../src/store/nsp-store.js';
+import { listMazes } from '../src/sim/maze-layouts.js';
+
+const $ = (id) => document.getElementById(id);
+initLang($('langSelect'));
+$('homeLink').title = t('mlabBack'); $('homeLink').setAttribute('aria-label', t('mlabBack'));
+$('labRes').title = t('mlabResTip');
+$('simSpeed').setAttribute('aria-label', t('ariaSimSpeed'));
+{ // dashboard shell: options + KPI boxes dock to the left sidebar
+  const main = document.querySelector('main');
+  const center = document.createElement('div'); center.id = 'labMain';
+  const side = document.createElement('aside'); side.id = 'labSide'; side.className = 'glass';
+  const head = document.createElement('div'); head.className = 'panel-head';
+  head.innerHTML = `<h1 data-i18n="mlabSideTitle">${t('mlabSideTitle')}</h1><span class="side-counts"><span data-i18n="mlabPickMax">${t('mlabPickMax')}</span> · <span id="comboCount">–/6</span></span>`;
+  const layout = document.createElement('div'); layout.id = 'labLayout';
+  const optPanel = $('optPanel'); // grab BEFORE detach (getElementById misses detached nodes)
+  [...main.children].forEach((el) => center.appendChild(el));
+  side.append(head, optPanel); // sidebar = input only; KPI strip stays on top of main (output)
+  layout.append(side, center);
+  main.append(layout);
+}
+const errBox = $('errOverlay');
+const BUILD = '2026-10-30.2+multilab';
+window.addEventListener('error', (e) => { errBox.style.display = 'block'; errBox.textContent = t('errFmt')(e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => { errBox.style.display = 'block'; errBox.textContent = t('errFmt')(e.reason?.message || e.reason); });
+
+// ---------- option rows (max 6) ----------
+const SENSORS = [['fog_rgb', 'fog'], ['z_depth', 'depth'], ['optical_flow', 'flow'], ['sensor_fusion', 'fusion']];
+const AGENTS = ['1', '2', '3', '4', '5', '6'];
+const AGENT_COLORS = { 1: '#7dd3fc', 2: '#62e5b2', 3: '#f5b942', 4: '#a38cf4', 5: '#f472b6', 6: '#a3e635' };
+const hexA = (hex, a) => { const n = parseInt(hex.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+// Observer-only visibility (bee + marker live on layer 1; the eye rig hides the
+// agent during capture, so these scales never touch physics or vision input).
+const BEE_VIEW_SCALE = 2.4, MARKER_VIEW_SCALE = 1.6;
+const SHOW_STRIPS = false; // per-slot live strip charts — set true to restore
+const SAVE_SERVER = 'http://127.0.0.1:18765/save'; // local save_server.py; offline -> download fallback
+// Agent descriptor uses main-sim terms (optCamera/optNeurons + short eye/sensor chips).
+function agentDesc(o) {
+  const ctl = t(o.controller === 'neurons' ? 'optNeurons' : 'optCamera');
+  return `${ctl} · ${shortEye(o.visionMode)} · ${shortSen(o.sensor)}${o.controller === 'neurons' ? ' · ' + (o.neuronModel === 'alif_surrogate' ? 'ALIF' : 'LIF') : ''}`;
+}
+function agentChips(o) {
+  return [shortCtl(o.controller), shortEye(o.visionMode), shortSen(o.sensor)];
+}
+
+// Filter-driven picker: matched combos (max 6) map in order to AGENT 1→2→3→4→5→6
+// auto-synced: the visible list is the runnable set. Default cam+neu/ALL/fog/LIF shows exactly 4.
+const COMBOS = [];
+for (const controller of ['camera', 'neurons'])
+  for (const visionMode of ['monocular', 'binocular'])
+    for (const [sensor] of SENSORS)
+      for (const neuronModel of (controller === 'neurons' ? ['lif_baseline', 'alif_surrogate'] : ['lif_baseline']))
+        COMBOS.push({ controller, visionMode, sensor, neuronModel });
+const DEFAULT_FILTERS = () => ({ controller: ['camera', 'neurons'], visionMode: 'all', sensor: ['fog_rgb'], neuronModel: ['lif_baseline'] });
+let filters = DEFAULT_FILTERS(); // null / [] dimension = nothing selected = empty list
+let confirmed = []; // auto-synced from the matched list by syncConfirmed()
+const comboMatchF = (f, o) => (f.controller.length > 0 && f.controller.includes(o.controller))
+  && (f.visionMode != null && (f.visionMode === 'all' || o.visionMode === f.visionMode))
+  && (f.sensor.length > 0 && f.sensor.includes(o.sensor))
+  && ((o.controller === 'camera') || (f.neuronModel.length > 0 && f.neuronModel.includes(o.neuronModel)));
+const comboMatch = (o) => comboMatchF(filters, o);
+const matchedCombos = (f = filters) => COMBOS.filter((o) => comboMatchF(f, o));
+function shortCtl(v) { return v === 'neurons' ? t('mlabNeu') : t('mlabCamG'); }
+function shortEye(v) { return v === 'monocular' ? t('mlabMono') : t('mlabBino'); }
+function shortSen(v) { return t({ fog_rgb: 'mlabSenFog', z_depth: 'mlabSenDepth', optical_flow: 'mlabSenFlow', sensor_fusion: 'mlabSenFusion' }[v]); }
+function reasonLabel(k) { return k === 'goal' ? t('mlabGoal') : k === 'timeout' ? t('mlabTimeout') : k === 'stopped' ? t('mlabStopped') : k; }
+function renderFilters() {
+  const allL = t('mlabAll');
+  const row = (opts, isSel, fk, cls = '') => `<div class="frow${cls ? ` ${cls}` : ''}">${
+    opts.map(([v, l]) => `<button class="fchip${isSel(v) ? ' sel' : ''}" data-fk="${fk}" data-fv="${v}">${l}</button>`).join('')
+  }</div>`;
+  const div = '<div class="fdiv"></div>';
+  const showNeu = filters.controller.includes('neurons');
+  const ctlChips = [['camera', t('mlabCamG')], ['neurons', t('mlabNeu')]].map(([v, l]) =>
+    `<button class="fchip${filters.controller.includes(v) ? ' sel' : ''}" data-fk="controller" data-fv="${v}">${l}</button>`).join('');
+  const engChips = [['lif_baseline', 'LIF'], ['alif_surrogate', 'ALIF']].map(([v, l]) =>
+    `<button class="fchip${filters.neuronModel.includes(v) ? ' sel' : ''}" data-fk="neuronModel" data-fv="${v}">${l}</button>`).join('');
+  $('comboFilters').innerHTML = `<div class="fgroup single">` +
+    `<div class="frow">${ctlChips}${showNeu ? '<span class="fsep"></span>' + engChips : ''}</div>` + div +
+    row([['all', allL], ['monocular', t('mlabMono')], ['binocular', t('mlabBino')]], (v) => filters.visionMode === v, 'visionMode') + div +
+    row([['all', allL], ['fog_rgb', t('mlabSenFog')], ['z_depth', t('mlabSenDepth')], ['optical_flow', t('mlabSenFlow')], ['sensor_fusion', t('mlabSenFusion')]],
+      (v) => v === 'all' ? filters.sensor.length >= 4 : filters.sensor.includes(v), 'sensor', 'sensors') + `</div>`;
+  $('comboFilters').querySelectorAll('.fchip').forEach((b) => b.addEventListener('click', () => {
+    if (B.running) return;
+    const { fk, fv } = b.dataset;
+    const next = { controller: [...filters.controller], visionMode: filters.visionMode, sensor: [...filters.sensor], neuronModel: [...filters.neuronModel] };
+    if (fk === 'sensor') {
+      if (fv === 'all') next.sensor = next.sensor.length >= 4 ? [] : ['fog_rgb', 'z_depth', 'optical_flow', 'sensor_fusion'];
+      else {
+        const i = next.sensor.indexOf(fv);
+        if (i >= 0) next.sensor.splice(i, 1);
+        else next.sensor.push(fv);
+      }
+    } else if (fk === 'neuronModel') {
+      const i = next.neuronModel.indexOf(fv);
+      if (i >= 0) next.neuronModel.splice(i, 1);
+      else next.neuronModel.push(fv);
+    } else if (fk === 'controller') {
+      const i = next.controller.indexOf(fv);
+      if (i >= 0) next.controller.splice(i, 1);
+      else next.controller.push(fv);
+    } else next[fk] = (filters[fk] === fv) ? null : fv; // second press deselects
+    if (fk === 'controller' && next.controller.includes('neurons') && next.neuronModel.length === 0) next.neuronModel = ['lif_baseline']; // LIF default
+    if (matchedCombos(next).length > 6) { $('pickMsg').textContent = t('mlabMax4'); return; } // block overflow
+    filters = next;
+    $('pickMsg').textContent = '';
+    renderFilters(); renderGrid();
+  }));
+}
+function renderGrid() {
+  $('comboGrid').innerHTML = '';
+  const list = matchedCombos();
+  $('comboCount').textContent = `${list.length}/6`;
+  const same = (a, b) => a && b && a.controller === b.controller && a.visionMode === b.visionMode && a.sensor === b.sensor && a.neuronModel === b.neuronModel;
+  const isLive = list.length > 0 && confirmed.length === list.length && list.every((o, i) => same(o, confirmed[i]));
+  for (let i = 0; i < AGENTS.length; i++) {
+    const o = list[i];
+    const d = document.createElement('div');
+    d.className = 'combo sel' + (o ? '' : ' empty');
+    const c = AGENT_COLORS[AGENTS[i]];
+    const dot = (isLive && o) ? `<span class="adot" style="background:${c};box-shadow:0 0 8px ${c}"></span>` : `<span class="adot" style="background:#5b6b7d"></span>`;
+    d.innerHTML = o
+      ? `<span class="atitle">${AGENTS[i]}</span><div class="abox" style="background:${hexA(c, .4)}">${shortCtl(o.controller)} · ${shortEye(o.visionMode)} · ${shortSen(o.sensor)}${o.controller === 'neurons' ? ' · ' + (o.neuronModel === 'alif_surrogate' ? 'ALIF' : 'LIF') : ''}</div>${dot}`
+      : `<span class="atitle">${AGENTS[i]}</span><div class="abox empty">${t('mlabStandby')}</div>`;
+    $('comboGrid').appendChild(d);
+  }
+  syncConfirmed();
+}
+function syncConfirmed() { // no confirm gate: the visible list IS the runnable set
+  if (B.running) return;
+  confirmed = matchedCombos().map((o) => ({ ...o }));
+  if (confirmed.length) previewWorlds(); else emptySlots();
+  refreshSlotCfg(); updateRunBtn();
+}
+$('clearQueue').addEventListener('click', () => {
+  if (B.running) return;
+  filters = { controller: [], visionMode: null, sensor: [], neuronModel: [] };
+  confirmed = [];
+  $('pickMsg').textContent = '';
+  renderFilters(); renderGrid(); emptySlots(); refreshSlotCfg(); updateRunBtn();
+});
+function updateRunBtn() {
+  $('runBtn').disabled = B.running || !confirmed.length; $('runBtn').classList.toggle('running', B.running);
+}
+$('simSpeed').addEventListener('change', (e) => {
+  SIM_SPEED = +e.target.value || 2;
+  for (const sl of B.slots) sl.simAcc = 0; // avoid a one-frame time jump on mid-run changes
+});
+function setSlotDesc(sl, o) {
+  const el = sl.dom.querySelector('.sdesc');
+  const c = AGENT_COLORS[AGENTS[sl.idx]];
+  el.style.background = hexA(c, .4);
+  el.style.borderColor = c;
+  if (!o) { el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = '';
+  el.textContent = agentDesc(o) + (sl.cfg ? ` · ${sl.cfg.config_id}` : '');
+}
+function refreshSlotCfg() {
+  B.slots.forEach((sl, i) => {
+    const o = sl.cfg
+      ? { controller: sl.cfg.controller, visionMode: sl.cfg.visionMode, sensor: sl.cfg.sensor, neuronModel: sl.cfg.neuronModel }
+      : confirmed[i];
+    setSlotDesc(sl, o || null);
+  });
+}
+$('langSelect').addEventListener('change', (e) => {
+  setLang(e.target.value);
+  renderFilters(); renderGrid(); updateRunBtn();
+  renderMazeCards(); captureMazeThumbs();
+  if (!B.running) { if (confirmed.length) previewWorlds(); else emptySlots(); }
+  document.querySelectorAll('.smini').forEach((el) => {
+    const sm = el.querySelectorAll('small');
+    sm[0].textContent = t('mlabThSucc'); sm[1].textContent = t('mlabThT'); sm[2].textContent = t('mlabThC');
+  });
+  refreshSlotCfg();
+  renderAggregate();
+  renderSessions();
+  sizeExpButtons();
+  $('homeLink').title = t('mlabBack'); $('homeLink').setAttribute('aria-label', t('mlabBack'));
+  $('labRes').title = t('mlabResTip');
+  $('simSpeed').setAttribute('aria-label', t('ariaSimSpeed'));
+  paintRecBtn();
+});
+function readOptions() {
+  return AGENTS.map((a, i) => (confirmed[i] ? { on: true, ...confirmed[i] } : { on: false, controller: 'neurons', visionMode: 'monocular', sensor: 'fog_rgb', neuronModel: 'lif_baseline' }));
+}
+
+// ---------- shared assets (same as batch.html) ----------
+async function loadGraphFile(url) {
+  const text = await (await fetch(url)).text();
+  const m = text.match(/window\.(?:FLIGHT_GRAPH|FLIGHT_CIRCUIT_EXTENSION)\s*=\s*(\{[\s\S]*\});?\s*$/);
+  const obj = m ? JSON.parse(m[1]) : JSON.parse(text);
+  if (!obj.edges && Array.isArray(obj.pairs)) {
+    obj.edges = obj.pairs.map((p) => ({ source: p.src ?? p.source, target: p.dst ?? p.target, weight: p.w ?? p.weight }));
+  }
+  return obj;
+}
+let loadedGraph = null;
+try {
+  const base = await loadGraphFile('../vendor/connectome/flight-graph.js');
+  const ext = await loadGraphFile('../vendor/connectome/flight-circuit-extension.js');
+  loadedGraph = mergeFlightGraphs(base, ext);
+} catch (e) { errBox.style.display = 'block'; errBox.textContent = t('mlabErrGraphLoadFmt')(e.message); }
+
+// ---------- IndexedDB (runId carries confirm-time: every run appends, never overwrites) ----------
+const DB_NAME = 'nsp3d-multilab', DB_STORE = 'sessions';
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE, { keyPath: 'runId' }); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+let _db = null;
+async function db() { if (!_db) _db = await openDb(); return _db; }
+async function dbPut(rec) {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(rec);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbGet(runId) {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const rq = d.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(runId);
+    rq.onsuccess = () => resolve(rq.result || null); rq.onerror = () => reject(rq.error);
+  });
+}
+async function dbAll() {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const rq = d.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).getAll();
+    rq.onsuccess = () => resolve(rq.result || []); rq.onerror = () => reject(rq.error);
+  });
+}
+async function dbClear() {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+function djb2(s) {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0;
+  return h.toString(16).padStart(8, '0');
+}
+
+// ---------- sim engine (same stepping as batch.html, render ON) ----------
+const ZERO_VISION = () => ({
+  leftThreat: 0, rightThreat: 0, frontThreat: 0, upThreat: 0, downThreat: 0,
+  loomingL: 0, loomingR: 0, motionL: 0, motionR: 0, escapeDirection: 1,
+  grid: Array(9).fill(0), upperRoute: 0, lowerRoute: 0, centerObstacle: 0,
+  goalPixels: 0, goalVisible: 0, goalLockX: 0, goalLockY: 0,
+});
+const r4 = (v) => +Number(v).toFixed(4);
+const B = { slots: [], running: false, stopReq: false, flightLog: [], perConfig: {}, sessionStart: 0, dropped: 0 };
+const HAZARDS = 'none', CRUISE = 0.12, GAIN = 1.0, TMAX = 120; // main-parity: main maxTime=120
+let SIM_SPEED = 2; // 1x/2x/3x via the speed selector (default 2x = legacy behavior)
+// Single-select maze, limited to stages 2/6/7/11 (main-page 1-based numbering).
+const MAZE4 = [
+  { n: 2, id: 'corridor' }, { n: 6, id: 'multi_level_3d' },
+  { n: 7, id: 'zigzag_labyrinth' }, { n: 11, id: 'loop_ring' },
+];
+let curMaze = 'corridor';
+const mazeName = (id) => {
+  const m = listMazes().find((z) => z.id === id) || {};
+  return getLang() === 'ko' && m.nameKo ? m.nameKo : (m.name || id);
+};
+function renderMazeCards() {
+  $('mazeCards').innerHTML = '';
+  for (const { n, id } of MAZE4) {
+    const b = document.createElement('button');
+    b.className = 'maze-card' + (curMaze === id ? ' sel' : '');
+    b.innerHTML = `<img alt="${id}"><span>${n} · ${mazeName(id)}</span>`;
+    b.addEventListener('click', () => { if (!B.running && curMaze !== id) { curMaze = id; renderMazeCards(); captureMazeThumbs(); if (confirmed.length) previewWorlds(); else emptySlots(); } });
+    $('mazeCards').appendChild(b);
+  }
+}
+// Pre-made S/G marker sprites (start = agent, goal = target), blitted over thumbs.
+const _markers = {};
+function markerSprite(letter, color) {
+  const k = letter + color;
+  if (_markers[k]) return _markers[k];
+  const c = document.createElement('canvas'); c.width = 30; c.height = 30;
+  const x = c.getContext('2d');
+  x.beginPath(); x.arc(15, 15, 13, 0, 7); x.fillStyle = '#0b1520'; x.fill();
+  x.beginPath(); x.arc(15, 15, 11.5, 0, 7); x.fillStyle = color; x.fill();
+  x.fillStyle = '#ffffff'; x.font = '800 14px system-ui'; x.textAlign = 'center'; x.textBaseline = 'middle';
+  x.fillText(letter, 15, 16);
+  return (_markers[k] = c);
+}
+function captureMazeThumbs() {
+  // Identical pipeline to the live slot preview: slot-0 scene + observer camera,
+  // one maze at a time, then restore. S/G markers projected from start/goal.
+  if (B.running) return; // never touch live worlds (e.g. language switch mid-run)
+  const sl = B.slots[0], { renderer, H } = sl;
+  const comp = captureMazeThumbs._c || (captureMazeThumbs._c = document.createElement('canvas'));
+  comp.width = 520; comp.height = 220;
+  const c2 = comp.getContext('2d');
+  const mkS = markerSprite('S', '#f97316'), mkG = markerSprite('G', '#22c55e');
+  const seed = dateSeed();
+  const imgs = $('mazeCards').querySelectorAll('img');
+  const mv = sl.marker.visible; sl.marker.visible = false; // clean thumbs
+  MAZE4.forEach(({ id }, i) => {
+    setWorld(0, seed, id);
+    sl.bee.position.set(sl.start.x, sl.start.y, sl.start.z);
+    sl.bee.rotation.set(0, 0, 0);
+    renderer.render(H.scene, H.observerCamera);
+    c2.drawImage(renderer.domElement, 0, 0);
+    for (const [p, mk] of [[sl.start, mkS], [sl.goal, mkG]]) {
+      const v = new THREE.Vector3(p.x, (p.y || 0) + 0.035, p.z).project(H.observerCamera);
+      c2.drawImage(mk, (v.x * 0.5 + 0.5) * 520 - 15, (-v.y * 0.5 + 0.5) * 220 - 15);
+    }
+    if (imgs[i]) imgs[i].src = comp.toDataURL('image/png');
+  });
+  sl.marker.visible = mv;
+  setWorld(0, seed, curMaze); // restore (previewWorlds repaints all slots after)
+}
+function makeCfg(slotIdx, opt, runId) {
+  const base = `${opt.controller === 'neurons' ? 'neu' : 'cam'}_${opt.visionMode === 'monocular' ? 'mono' : 'bino'}_${opt.sensor}`;
+  const ntag = opt.controller === 'neurons' ? (opt.neuronModel === 'alif_surrogate' ? '_alif' : '_lif') : '';
+  return {
+    config_id: `${base}${ntag}_s${slotIdx}`, runTag: runId,
+    controller: opt.controller, visionMode: opt.visionMode, sensor: opt.sensor,
+    neuronModel: opt.neuronModel || 'lif_baseline', maze: curMaze, hazards: HAZARDS,
+    cruise_ms: CRUISE, vision_sensitivity: GAIN, max_time_s: TMAX,
+  };
+}
+function buildMarker(color) {
+  // Observer-only bee marker (layer 1: eye cameras 0+3 never see it).
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity: .95 });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(.016, .02, 40), mat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = .001;
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0012, .05, 8), mat);
+  pole.position.y = .026;
+  const top = new THREE.Mesh(new THREE.OctahedronGeometry(.006), mat);
+  top.position.y = .056;
+  for (const m of [ring, pole, top]) { m.layers.set(1); m.renderOrder = 999; g.add(m); }
+  g.scale.setScalar(MARKER_VIEW_SCALE);
+  g.visible = false;
+  return g;
+}
+function createSlot(idx) {
+  const div = document.createElement('div');
+  div.className = 'slot off';
+  div.style.borderLeftColor = AGENT_COLORS[AGENTS[idx]];
+  div.innerHTML = `<div class="shead"><span class="sdot idle"></span><span class="stitle">AGENT ${AGENTS[idx]}</span><span class="sbadge"></span></div><div class="sdesc" style="display:none"></div><div class="sview"></div><div class="sprog"><i></i></div><div class="smeta"><span class="spct"></span><span class="seta"></span></div>${SHOW_STRIPS ? '<canvas class="strip" width="520" height="54"></canvas>' : ''}<div class="sstat">—</div><div class="smini"><div><small>${t('mlabThSucc')}</small><b data-m="rate">—</b></div><div><small>${t('mlabThT')}</small><b data-m="time">—</b></div><div><small>${t('mlabThC')}</small><b data-m="coll">—</b></div></div>`;
+  $('slotGrid').appendChild(div);
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.shadowMap.enabled = false; // explicit default: observer is display-only; eye-capture pixels unaffected
+  renderer.setPixelRatio(1);
+  const vw = 520, vh = 220;
+  renderer.setSize(vw, vh);
+  renderer.domElement.className = 'view';
+  div.querySelector('.sview').appendChild(renderer.domElement);
+  const H = buildStaticScene();
+  H.scene.background = new THREE.Color(0x060914);
+  const bee = createBee(THREE, { wingScale: 0.83 });
+  bee.traverse((o) => o.layers.set(1));
+  bee.scale.setScalar(BEE_VIEW_SCALE);
+  H.scene.add(bee);
+  const marker = buildMarker(AGENT_COLORS[AGENTS[idx]]);
+  H.scene.add(marker);
+  H.observerCamera.position.set(0, 0.78, 0.88);
+  H.observerCamera.lookAt(0, 0.01, 0);
+  H.observerCamera.aspect = vw / vh;
+  H.observerCamera.updateProjectionMatrix();
+  return {
+    idx, dom: div, renderer, H, bee, marker, rig: new EyeRig(renderer, H, bee, H.goalGroup),
+    vw, vh, cfg: null, runIdx: 0, runsTotal: 0, seedBase: 0, active: false,
+    obstacles: [], start: null, goal: null, fly: null, net: null, rule: null,
+    touch: null, pathLen: 0, lastTurn: 0, lastClimb: 0, lastBrain: null,
+    latestVision: ZERO_VISION(), visionSimLast: -Infinity, simAcc: 0,
+    strip: { F: [], turn: [], climb: [], rew: [] },
+    stepsCount: 0, stepsT0: performance.now(),
+  };
+}
+for (let i = 0; i < AGENTS.length; i++) B.slots.push(createSlot(i));
+function setWorld(si, seed, mazeId = curMaze) {
+  const sl = B.slots[si];
+  clearWorld(sl.H.scene, sl.obstacles);
+  const w = makeWorld(seed, mazeId);
+  sl.obstacles = HAZARDS === 'none' ? w.obstacles.filter((o) => o.type === 'wall') : w.obstacles;
+  sl.start = w.start; sl.goal = w.goal;
+  for (const o of sl.obstacles) { o.mesh = buildObstacleMesh(o); sl.H.scene.add(o.mesh); }
+  sl.H.goalGroup.position.set(sl.goal.x, .02, sl.goal.z);
+  advanceWorld(sl.obstacles, 0, true); // place meshes (preview has no runStep to do it)
+}
+function previewWorlds() {
+  if (B.running) return;
+  for (let i = 0; i < AGENTS.length; i++) {
+    setWorld(i, dateSeed());
+    const sl = B.slots[i];
+    sl.bee.visible = true;
+    sl.bee.position.set(sl.start.x, sl.start.y, sl.start.z);
+    sl.marker.visible = true;
+    sl.marker.position.set(sl.bee.position.x, 0, sl.bee.position.z); // ground-anchored: ring on floor = true XZ, never reads as outside a wall
+    sl.dom.classList.add('off'); // bright/activated look only while running
+    sl.renderer.render(sl.H.scene, sl.H.observerCamera);
+  }
+}
+function emptySlots() {
+  // Initial / cleared state: empty chamber, no maze, no bee, no desc.
+  for (const sl of B.slots) {
+    sl.cfg = null; sl.active = false;
+    clearWorld(sl.H.scene, sl.obstacles);
+    sl.obstacles = [];
+    sl.bee.visible = false;
+    sl.marker.visible = false;
+    sl.renderer.render(sl.H.scene, sl.H.observerCamera);
+    sl.dom.classList.add('off');
+    sl.dom.classList.remove('active');
+    sl.dom.querySelector('.stitle').textContent = `AGENT ${AGENTS[sl.idx]}`;
+    sl.dom.querySelector('.sdot').className = 'sdot idle';
+    setSlotDesc(sl, null);
+    sl.dom.querySelector('.sstat').textContent = '—';
+    const badge = sl.dom.querySelector('.sbadge'); badge.textContent = ''; badge.className = 'sbadge';
+    sl.dom.querySelector('.spct').textContent = ''; sl.dom.querySelector('.seta').textContent = '';
+    sl.dom.querySelector('.sprog i').style.width = '0';
+    sl.dom.querySelector('[data-m=rate]').textContent = '—';
+    sl.dom.querySelector('[data-m=time]').textContent = '—';
+    sl.dom.querySelector('[data-m=coll]').textContent = '—';
+  }
+}
+function resetRun(sl) {
+  const seed = sl.seedBase + sl.runIdx;
+  setWorld(sl.idx, seed);
+  sl.fly = createFlightState(sl.start, sl.goal);
+  sl.rule = createCameraRuleController();
+  sl.touch = null; sl.pathLen = 0; sl.lastTurn = 0; sl.lastClimb = 0; sl.lastBrain = null;
+  sl.latestVision = ZERO_VISION(); sl.visionSimLast = -Infinity; sl.simAcc = 0;
+  sl.net = createFlightConnectome(loadedGraph, { mode: sl.cfg.visionMode, neuronRule: sl.cfg.neuronModel });
+  sl.rig.reset();
+  sl.bee.position.set(sl.start.x, sl.start.y, sl.start.z);
+  sl.bee.rotation.set(0, -sl.fly.yaw, 0, 'YXZ');
+  sl.marker.visible = true;
+  sl.marker.position.set(sl.bee.position.x, 0, sl.bee.position.z); // ground-anchored beacon
+  sl.strip = { F: [], turn: [], climb: [], rew: [] };
+  advanceWorld(sl.obstacles, 0, true);
+  updateBeeVision(sl, true);
+  return seed;
+}
+function updateBeeVision(sl, force = false) {
+  if (!force && sl.fly.elapsed - sl.visionSimLast < CAMERA_PIPELINE.updateIntervalMs / 1000) return false;
+  sl.visionSimLast = sl.fly.elapsed;
+  const { signal } = sl.rig.captureBeeVision({ pos: sl.fly.pos, yaw: sl.fly.yaw, pitch: sl.fly.pitch }, sl.cfg.visionMode, sl.cfg.sensor);
+  sl.latestVision = signal;
+  return true;
+}
+function runStep(sl, dt) {
+  advanceWorld(sl.obstacles, sl.fly.elapsed, true);
+  const brain = senseVision(sl.fly.pos, sl.fly.yaw, sl.fly.pitch, sl.latestVision, { sensitivity: sl.cfg.vision_sensitivity, neuronRule: sl.cfg.neuronModel, eyeMode: sl.cfg.visionMode });
+  brain.dt = dt;
+  brain.touch = sl.touch;
+  brain.stalled = isStalled(sl.fly.odo);
+  const decision = (sl.cfg.controller || 'neurons') === 'camera' ? sl.rule.step(brain) : sl.net.step(brain);
+  const ox = sl.fly.pos.x, oy = sl.fly.pos.y, oz = sl.fly.pos.z;
+  const m = movement(sl.fly, decision, dt, sl.obstacles, {
+    speed: sl.cfg.cruise_ms, learning: false, brain, goal: sl.goal, collisionPenalty: 1.5, timeLimit: sl.cfg.max_time_s,
+  });
+  sl.touch = m.touch ? { side: m.touch.side, mag: m.touch.mag } : decayTouch(sl.touch, dt);
+  sl.pathLen += Math.hypot(sl.fly.pos.x - ox, sl.fly.pos.y - oy, sl.fly.pos.z - oz);
+  sl.lastTurn = m.activeTurn ?? decision.turn ?? 0;
+  sl.lastClimb = m.climb || 0;
+  sl.lastBrain = brain;
+  sl.bee.position.set(sl.fly.pos.x, sl.fly.pos.y, sl.fly.pos.z);
+  sl.bee.rotation.set(sl.fly.pitch, -sl.fly.yaw, 0, 'YXZ');
+  return brain;
+}
+function logRow(sl, seed, brain) {
+  B.flightLog.push({
+    t: r4(sl.fly.elapsed), config_id: sl.cfg.config_id, slot: sl.idx, run: sl.runIdx, seed,
+    vision_sensitivity: sl.cfg.vision_sensitivity,
+    pos: { x: r4(sl.fly.pos.x), y: r4(sl.fly.pos.y), z: r4(sl.fly.pos.z) },
+    yaw: r4(sl.fly.yaw), pitch: r4(sl.fly.pitch),
+    L: r4(brain.leftThreat), F: r4(brain.frontThreat), R: r4(brain.rightThreat),
+    U: r4(brain.upThreat), D: r4(brain.downThreat),
+    upR: r4((brain.gridWall || [])[1]), cR: r4((brain.gridWall || [])[4]), loR: r4((brain.gridWall || [])[7]),
+    upM: r4((brain.grid || [])[1]), loM: r4((brain.grid || [])[7]),
+    esc: brain.escapeDirection ?? 0, stall: brain.stalled ? 1 : 0,
+    turn: r4(sl.lastTurn), climb: r4(sl.lastClimb),
+    reward: r4(sl.fly.reward), collision: sl.fly.collisions,
+  });
+  if (SHOW_STRIPS) {
+    const st = sl.strip;
+    st.F.push(brain.frontThreat); st.turn.push(sl.lastTurn); st.climb.push(sl.lastClimb); st.rew.push(sl.fly.reward);
+    if (st.F.length > 240) { st.F.shift(); st.turn.shift(); st.climb.shift(); st.rew.shift(); }
+  }
+}
+function drawStrip(sl) {
+  if (!SHOW_STRIPS) return;
+  const cv = sl.dom.querySelector('.strip'), ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.fillStyle = '#030916'; ctx.fillRect(0, 0, w, h);
+  ctx.strokeStyle = '#243348'; ctx.beginPath(); ctx.moveTo(0, h / 2); ctx.lineTo(w, h / 2); ctx.stroke();
+  const series = [[sl.strip.F, '#fb7185', 0, 1], [sl.strip.turn, '#f5b942', -1, 1], [sl.strip.climb, '#38bdf8', -1, 1]];
+  for (const [arr, color, lo, hi] of series) {
+    if (!arr.length) continue;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.2; ctx.beginPath();
+    arr.forEach((v, i) => {
+      const x = (i / 239) * w, y = h - ((v - lo) / (hi - lo)) * h;
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  }
+}
+function summarizeRuns(runs) {
+  const ok = runs.filter((r) => r.success);
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  return { n: runs.length, ok: ok.length, rate: runs.length ? ok.length / runs.length : 0, meanT: +mean(runs.map((r) => r.elapsed_s)).toFixed(2), meanC: +mean(runs.map((r) => r.collisions)).toFixed(2), meanR: +mean(runs.map((r) => r.reward)).toFixed(2) };
+}
+function finishRun(sl, reason) {
+  const d = Math.hypot(sl.goal.x - sl.fly.pos.x, sl.goal.y - sl.fly.pos.y, sl.goal.z - sl.fly.pos.z);
+  const elapsed = +sl.fly.elapsed.toFixed(2);
+  const store = B.perConfig[sl.cfg.config_id];
+  store.runs.push({
+    run: store.runs.length, seed: sl.curSeed, slot: sl.idx,
+    success: sl.fly.success, reason,
+    elapsed_s: elapsed, collisions: sl.fly.collisions,
+    path_m: +sl.pathLen.toFixed(3),
+    avg_speed: elapsed > 0 ? +(sl.pathLen / elapsed).toFixed(3) : 0,
+    final_d: +d.toFixed(4), reward: +sl.fly.reward.toFixed(3),
+  });
+  try { store.gains_end = sl.net.exportWeights(); } catch (e) { store.gains_end = null; }
+}
+
+// ---------- run control ----------
+const logEl = $('log');
+const LOG_KEY = 'mlabLogLines';
+function logPersist(line) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+    arr.push(line);
+    while (arr.length > 80) arr.shift();
+    localStorage.setItem(LOG_KEY, JSON.stringify(arr));
+  } catch (e) { /* private mode etc: in-memory only */ }
+}
+function log(msg) {
+  const d = new Date(), p = (n) => String(n).padStart(2, '0');
+  const line = `[${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}] ${msg}`;
+  logEl.textContent += line + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+  logPersist(line);
+}
+function logRestore() { // survives Live Server reloads: history is never wiped
+  try {
+    const arr = JSON.parse(localStorage.getItem(LOG_KEY) || '[]');
+    if (arr.length) logEl.textContent = arr.join('\n') + '\n';
+  } catch (e) { /* ignore */ }
+}
+function stampOf(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+function fmtLocal(iso) { // local 24h clock: YYYY-MM-DD HH:MM
+  const d = new Date(iso), p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+let curRunId = null, curRunsEach = 2, curSeedBase = 0;
+window.addEventListener('beforeunload', (e) => { if (B.running) { e.preventDefault(); e.returnValue = ''; } });
+async function ensureAlif() {
+  if (globalThis.ALIFSurrogatePlugin) return true;
+  try {
+    const m = await import('../src/vision/alif-surrogate-plugin.js');
+    globalThis.ALIFSurrogatePlugin = m.ALIFSurrogatePlugin;
+    return true;
+  } catch (e) { return false; }
+}
+$('runBtn').addEventListener('click', async () => {
+  if (!loadedGraph) { errBox.style.display = 'block'; errBox.textContent = t('mlabErrGraphNotLoaded'); return; }
+  const opts = readOptions();
+  const enabled = opts.map((o, i) => ({ o, i })).filter(({ o }) => o.on).slice(0, 6);
+  if (!enabled.length) { log(t('mlabLogEnableSlot')); return; }
+  curRunsEach = Math.max(1, Math.min(20, +$('runsIn').value || 2));
+  curSeedBase = +$('seedIn').value || dateSeed();
+  if (enabled.some(({ o }) => o.neuronModel === 'alif_surrogate') && !(await ensureAlif())) {
+    errBox.style.display = 'block'; errBox.textContent = t('mlabErrAlif'); return;
+  }
+  curRunId = 'lab_' + djb2(JSON.stringify({ m: curMaze, c: enabled.map(({ o }) => [o.controller, o.visionMode, o.sensor, o.neuronModel]), r: curRunsEach, s: curSeedBase, t: Date.now() }));
+  B.flightLog = []; B.perConfig = {}; B.stopReq = false; B.dropped = 0;
+  B.sessionStart = Date.now();
+  for (const sl of B.slots) sl.active = false;
+  for (const { o, i } of enabled) {
+    const sl = B.slots[i];
+    sl.cfg = makeCfg(i, o, curRunId);
+    B.perConfig[sl.cfg.config_id] = { config: sl.cfg, runs: [], gains_end: null };
+    sl.runIdx = 0; sl.runsTotal = curRunsEach;
+    sl.seedBase = curSeedBase + i * 1000;
+    sl.curSeed = resetRun(sl);
+    sl.active = true;
+    sl.dom.classList.remove('off');
+    sl.dom.querySelector('.stitle').textContent = `AGENT ${AGENTS[i]}`;
+    sl.dom.querySelector('.sdot').className = 'sdot run';
+  }
+  B.slots.forEach((sl, i) => {
+    if (!sl.active) { sl.dom.classList.add('off'); sl.dom.querySelector('.stitle').textContent = `AGENT ${AGENTS[i]}`; sl.dom.querySelector('.sdot').className = 'sdot idle'; sl.dom.querySelector('.sstat').textContent = '—'; }
+  });
+  refreshSlotCfg();
+  B.running = true;
+  $('footL').textContent = `NSP3D ${NSP3D_VERSION} · ${BUILD}`;
+  $('footR').textContent = `${curRunId} · ${t('mlabMaze')} ${curMaze} · ${t('mlabSeed')} ${curSeedBase} · ${enabled.length} ${t('mlabAgents')} x${curRunsEach}`;
+  $('runBtn').disabled = true; $('stopBtn').disabled = false; $('runBtn').classList.add('running');
+  $('aggOut').textContent = t('mlabRunning');
+  log(t('mlabLogStartFmt')(curRunId, enabled.map(({ i }) => `slot${i}`).join(','), curRunsEach, curSeedBase));
+});
+$('stopBtn').addEventListener('click', () => { B.stopReq = true; });
+// ---------- slot recording (one file per active slot, 2x render size) ----------
+const REC_W = 1040, REC_H = 440, REC_BPS = 4000000;
+const R = { recs: [], timer: 0, t0: 0, capped: false };
+function recTimeTick() {
+  if (!R.recs.length) return;
+  $('recTime').textContent = recElapsed(R.t0);
+  if (recCapped(R.t0)) { R.capped = true; stopRecAll(); }
+}
+function stopRecAll() {
+  clearInterval(R.timer); R.timer = 0;
+  const recs = R.recs; R.recs = [];
+  let n = 0;
+  for (const r of recs) {
+    if (r.rec.state !== 'inactive') { n++; try { r.rec.stop(); } catch (e) { /* ended already */ } }
+    try { r.sl.renderer.setSize(r.sl.vw, r.sl.vh); } catch (e) { /* keep going */ }
+  }
+  paintRecBtn();
+  $('recTime').textContent = '';
+  if (R.capped) toast(t('mlabRecCapped'));
+  else if (n) toast(t('mlabRecSavedFmt')(n));
+}
+$('recBtn').addEventListener('click', () => {
+  if (R.recs.length) { stopRecAll(); return; }
+  if (!B.running) { toast(t('mlabRecNeedRun')); return; }
+  if (!window.MediaRecorder || typeof B.slots[0].renderer.domElement.captureStream !== 'function') { toast(t('mlabRecUnsupported')); return; }
+  const live = B.slots.filter((sl) => sl.active && sl.cfg);
+  if (!live.length) { toast(t('mlabRecNeedRun')); return; }
+  try {
+    const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'].find((m) => MediaRecorder.isTypeSupported(m));
+    const t0 = Date.now();
+    R.t0 = t0; R.capped = false; R.recs = [];
+    for (const sl of live) {
+      sl.renderer.setSize(REC_W, REC_H, false); // 2x buffer, CSS layout untouched
+      const rec = new MediaRecorder(sl.renderer.domElement.captureStream(30), { ...(mime ? { mimeType: mime } : {}), videoBitsPerSecond: REC_BPS });
+      const fname = recFilename('multilab', `agent${AGENTS[sl.idx]}_${sl.cfg.config_id}`, new Date(t0));
+      const chunks = [];
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = async () => {
+        const blob = new Blob(chunks, { type: rec.mimeType || 'video/webm' });
+        try {
+          await saveArtifact({ kind: 'webm', page: 'multilab', source: `agent${AGENTS[sl.idx]}_${sl.cfg.config_id}`, filename: fname, blob });
+        } catch (err) { toast(t('mlabRecStoreFail')); }
+        // Dual-write until the report page lands (see main sim onstop).
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fname;
+        a.click();
+        setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      };
+      rec.start(250);
+      R.recs.push({ rec, sl });
+    }
+    paintRecBtn();
+    $('recTime').textContent = '0:00';
+    R.timer = setInterval(recTimeTick, 500);
+  } catch (e) {
+    for (const r of R.recs) { try { r.sl.renderer.setSize(r.sl.vw, r.sl.vh); } catch (e2) { /* keep going */ } }
+    R.recs = [];
+    toast(t('mlabRecUnsupported'));
+  }
+});
+// ---------- tab capture (whole page incl. panels; works on GitHub Pages https) ----------
+function paintRecBtn() {
+  const on = R.recs.length > 0;
+  $('recBtn').classList.toggle('on', on);
+  $('recBtn').title = on ? t('mlabRecStop') : t('mlabRec');
+}
+function rankedRows() {
+  const rows = Object.keys(B.perConfig).map((id) => ({ id, s: summarizeRuns(B.perConfig[id].runs) }));
+  rows.sort((a, b) => (b.s.rate - a.s.rate) || (a.s.meanT - b.s.meanT) || (a.s.meanC - b.s.meanC));
+  return rows;
+}
+let toastTimer = 0;
+function toast(msg, ms = 5000) {
+  const el = $('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+function doneToast() {
+  const rows = rankedRows();
+  const all = rows.flatMap(({ id }) => B.perConfig[id].runs);
+  const ok = all.filter((r) => r.success);
+  const best = rows[0]?.id;
+  const bm = best ? best.match(/_s(\d)$/) : null;
+  const rate = all.length ? `${(ok.length / all.length * 100).toFixed(0)}% (${ok.length}/${all.length})` : '—';
+  return `${t('mlabToastDone')} · ${rate}` + (bm ? ` · ${t('mlabBest')} AGENT ${AGENTS[+bm[1]]}` : '');
+}
+function renderAggregate() {
+  const ids = Object.keys(B.perConfig);
+  if (!ids.length) { $('aggOut').textContent = t('mlabWaiting'); renderKpis([], null); renderAnalysis(); renderRunBars(); return; }
+  const rows = rankedRows();
+  const best = rows[0]?.id;
+  $('aggOut').innerHTML = `<table><thead><tr><th>${t('mlabRank')}</th><th>${t('mlabThAgent')}</th><th>${t('mlabThExpId')}</th><th>${t('mlabThTotal')}</th><th>${t('mlabThSuccN')}</th><th>${t('mlabThFailN')}</th><th>${t('mlabThSucc')}</th><th>${t('mlabThT')}</th><th>${t('mlabThC')}</th><th>${t('mlabThReward')}</th></tr></thead><tbody>${
+    rows.map(({ id, s }, ri) => {
+      const cfg = B.perConfig[id].config;
+      const m = id.match(/_s(\d)$/);
+      const si = m ? +m[1] : 0;
+      const dot = `<span class="rankdot" style="background:${AGENT_COLORS[AGENTS[si]] || '#71859a'}"></span>`;
+      const agent = `AGENT ${AGENTS[si]} · ${shortCtl(cfg.controller)} · ${shortEye(cfg.visionMode)} · ${shortSen(cfg.sensor)}${cfg.controller === 'neurons' ? ' · ' + (cfg.neuronModel === 'alif_surrogate' ? 'ALIF' : 'LIF') : ''}`;
+      return `<tr class="${id === best ? 'best' : ''}"><td>#${ri + 1}</td><td>${dot}${agent}</td><td>${id}</td><td>${s.n}</td><td>${s.ok}</td><td>${s.n - s.ok}</td><td>${(s.rate * 100).toFixed(0)}%</td><td>${s.meanT}s</td><td>${s.meanC}</td><td>${s.meanR}</td></tr>`;
+    }).join('')
+  }</tbody></table>`;
+  renderKpis(rows, best);
+  renderAnalysis();
+  renderRunBars();
+}
+const SHOW_GRAPHS = false; // bottom chart panels hidden for now (lag) — set true to restore
+function renderRunBars() {
+  if (!SHOW_GRAPHS) return;
+  const cv = $('runBars'), ctx = cv.getContext('2d');
+  const Wpx = cv.width, Hpx = cv.height;
+  ctx.fillStyle = '#030916'; ctx.fillRect(0, 0, Wpx, Hpx);
+  const ids = Object.keys(B.perConfig);
+  const all = ids.flatMap((id) => B.perConfig[id].runs.map((r) => ({ id, r })));
+  if (!all.length) {
+    ctx.fillStyle = '#8fa6c2'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(t('mlabWaiting'), Wpx / 2, Hpx / 2);
+    $('runBarsNote').textContent = '';
+    return;
+  }
+  const maxT = Math.max(...all.map(({ r }) => r.elapsed_s), 1);
+  const padL = 8, padB = 22, top = 14, n = all.length;
+  const slot = (Wpx - padL * 2) / n, bw = Math.min(26, Math.max(4, slot * 0.55));
+  all.forEach(({ id, r }, i) => {
+    const ci = ids.indexOf(id) % SLOT_COLORS.length;
+    const h = Math.max(2, (r.elapsed_s / maxT) * (Hpx - top - padB));
+    const x = padL + slot * i + (slot - bw) / 2, y = Hpx - padB - h;
+    ctx.fillStyle = r.success ? SLOT_COLORS[ci] : '#475569';
+    ctx.fillRect(x, y, bw, h);
+    if (r.collisions > 0) {
+      ctx.fillStyle = '#f87171'; ctx.font = '10px system-ui'; ctx.textAlign = 'center';
+      ctx.fillText(`×${r.collisions}`, x + bw / 2, y - 3);
+    }
+    ctx.fillStyle = '#64748b'; ctx.font = '9px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(`${ci + 1}#${r.run}`, x + bw / 2, Hpx - 8);
+  });
+  const okT = all.filter(({ r }) => r.success).map(({ r }) => r.elapsed_s);
+  const mmx = okT.length ? t('mlabMinAvgMaxFmt')(Math.min(...okT).toFixed(1), (okT.reduce((a, b) => a + b, 0) / okT.length).toFixed(1), Math.max(...okT).toFixed(1)) : t('mlabNoSucc');
+  $('runBarsNote').textContent = ids.map((id) => {
+    const m = id.match(/_s(\d)$/);
+    return `[${m ? 'AGENT ' + AGENTS[+m[1]] : id}] ${id}`;
+  }).join('   ') + `   · ${mmx} · ${t('mlabBarsLegend')}`;
+  renderDist();
+}
+const SLOT_COLORS = AGENTS.map((a) => AGENT_COLORS[a]);
+function renderReward() {
+  if (!SHOW_GRAPHS) return;
+  const cv = $('rewCanvas'), ctx = cv.getContext('2d');
+  const Wpx = cv.width, Hpx = cv.height;
+  ctx.fillStyle = '#030916'; ctx.fillRect(0, 0, Wpx, Hpx);
+  const act = B.slots.filter((s) => s.cfg && s.strip.rew.length);
+  if (!act.length) {
+    ctx.fillStyle = '#8fa6c2'; ctx.font = '12px system-ui'; ctx.textAlign = 'center';
+    ctx.fillText(t('mlabWaiting'), Wpx / 2, Hpx / 2);
+    $('rewNote').textContent = '';
+    return;
+  }
+  const allv = act.flatMap((s) => s.strip.rew);
+  let lo = Math.min(...allv, 0), hi = Math.max(...allv, 0);
+  if (hi - lo < 1e-6) { hi = lo + 1; }
+  const y0 = Hpx - 14 - ((0 - lo) / (hi - lo)) * (Hpx - 24);
+  ctx.strokeStyle = '#243348'; ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(Wpx, y0); ctx.stroke();
+  for (const sl of act) {
+    ctx.strokeStyle = SLOT_COLORS[sl.idx % 4]; ctx.lineWidth = 1.4; ctx.beginPath();
+    sl.strip.rew.forEach((v, i) => {
+      const x = 8 + (i / 239) * (Wpx - 16), y = Hpx - 14 - ((v - lo) / (hi - lo)) * (Hpx - 24);
+      i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+    });
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#8fa6c2'; ctx.font = '10px system-ui'; ctx.textAlign = 'left';
+  ctx.fillText(`${t('mlabChartMax')} ${hi.toFixed(1)}`, 6, 12);
+  ctx.fillText(`${t('mlabChartMin')} ${lo.toFixed(1)}`, 6, Hpx - 16);
+  $('rewNote').textContent = act.map((s) => `[AGENT ${AGENTS[s.idx]}] ${s.cfg.config_id} → ${s.strip.rew[s.strip.rew.length - 1].toFixed(1)}`).join('   ') + `   · ${t('mlabPeak')} ${hi.toFixed(1)}`;
+}
+function renderDist() {
+  const hc = $('histCanvas'), hx = hc.getContext('2d');
+  hx.fillStyle = '#030916'; hx.fillRect(0, 0, hc.width, hc.height);
+  const ids = Object.keys(B.perConfig);
+  const all = ids.flatMap((id) => B.perConfig[id].runs);
+  if (all.length) {
+    const NB = 10, maxT = Math.max(...all.map((r) => r.elapsed_s), 0.1);
+    const ok = Array(NB).fill(0), fail = Array(NB).fill(0);
+    for (const r of all) {
+      const b = Math.min(NB - 1, Math.floor(r.elapsed_s / maxT * NB));
+      (r.success ? ok : fail)[b]++;
+    }
+    const mx = Math.max(...ok, ...fail, 1), bw = (hc.width - 16) / NB;
+    for (let i = 0; i < NB; i++) {
+      const x = 8 + i * bw + 1, w = bw - 2, base = hc.height - 18;
+      const ho = (ok[i] / mx) * (hc.height - 30), hf = (fail[i] / mx) * (hc.height - 30);
+      hx.fillStyle = '#62e5b2'; hx.fillRect(x, base - ho, w, ho);
+      hx.fillStyle = '#475569'; hx.fillRect(x, base - ho - hf, w, hf);
+      if (ok[i] + fail[i]) { hx.fillStyle = '#8fa6c2'; hx.font = '9px system-ui'; hx.textAlign = 'center'; hx.fillText(String(ok[i] + fail[i]), x + w / 2, base - ho - hf - 2); }
+    }
+    hx.fillStyle = '#64748b'; hx.font = '9px system-ui'; hx.textAlign = 'left';
+    hx.fillText('0s', 8, hc.height - 5); hx.textAlign = 'right'; hx.fillText(`${maxT.toFixed(0)}s`, hc.width - 8, hc.height - 5);
+  }
+  const sc = $('scatCanvas'), sx = sc.getContext('2d');
+  sx.fillStyle = '#030916'; sx.fillRect(0, 0, sc.width, sc.height);
+  if (all.length) {
+    const px = all.map((r) => r.path_m), py = all.map((r) => r.final_d);
+    let x0 = Math.min(...px), x1 = Math.max(...px), y0 = Math.min(...py), y1 = Math.max(...py);
+    if (x1 - x0 < 1e-6) x1 = x0 + 1;
+    if (y1 - y0 < 1e-6) y1 = y0 + 1;
+    const X = (v) => 34 + ((v - x0) / (x1 - x0)) * (sc.width - 44);
+    const Y = (v) => sc.height - 20 - ((v - y0) / (y1 - y0)) * (sc.height - 30);
+    sx.strokeStyle = '#243348'; sx.beginPath(); sx.moveTo(34, 6); sx.lineTo(34, sc.height - 20); sx.lineTo(sc.width - 10, sc.height - 20); sx.stroke();
+    for (const r of all) {
+      sx.beginPath(); sx.arc(X(r.path_m), Y(r.final_d), 4, 0, 7);
+      sx.fillStyle = r.success ? '#62e5b2' : '#f87171'; sx.fill();
+    }
+    sx.fillStyle = '#64748b'; sx.font = '9px system-ui'; sx.textAlign = 'left';
+    sx.fillText(t('mlabPathFmt')(x0.toFixed(1), x1.toFixed(1)), 36, sc.height - 6);
+    sx.fillText(t('mlabFinalDFmt')(y1.toFixed(2)), 4, 12);
+  }
+}
+let resTs0 = 0, resSteps0 = 0;
+function renderResUsage() { // header-right resource chip: live only while running
+  const el = $('labRes');
+  if (!B.running) { el.textContent = '—'; resTs0 = 0; return; }
+  const now = performance.now();
+  const steps = B.slots.reduce((a, s) => a + s.stepsCount, 0);
+  if (!resTs0) { resTs0 = now; resSteps0 = steps; el.textContent = '…'; return; }
+  const dt = (now - resTs0) / 1000;
+  const rate = dt > 0 ? Math.round((steps - resSteps0) / dt) : 0;
+  resTs0 = now; resSteps0 = steps;
+  const mem = (performance.memory) ? ` · ${Math.round(performance.memory.usedJSHeapSize / 1048576)}MB` : '';
+  el.textContent = `${rate} steps/s${mem} · ${t('mlabDrop')} ${B.dropped}`;
+}
+function renderKpis(rows, best) {
+  const all = rows.flatMap(({ id }) => B.perConfig[id].runs);
+  const ok = all.filter((r) => r.success);
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  $('kpiSucc').textContent = all.length ? `${(ok.length / all.length * 100).toFixed(0)}%` : '—';
+  $('kpiSuccS').textContent = all.length ? `${ok.length}/${all.length}` : '';
+  $('kpiTime').textContent = ok.length ? `${mean(ok.map((r) => r.elapsed_s)).toFixed(1)}s` : '—';
+  $('kpiTimeS').textContent = ok.length ? `n=${ok.length}` : '';
+  $('kpiColl').textContent = all.length ? mean(all.map((r) => r.collisions)).toFixed(1) : '—';
+  $('kpiCollS').textContent = all.length ? t('mlabTotalFmt')(all.reduce((a, r) => a + r.collisions, 0)) : '';
+  const bm = best ? best.match(/_s(\d)$/) : null;
+  const bcfg = best ? B.perConfig[best].config : null;
+  $('kpiBest').textContent = (bm && bcfg) ? `AGENT ${AGENTS[+bm[1]]} · ${shortCtl(bcfg.controller)} · ${shortEye(bcfg.visionMode)} · ${shortSen(bcfg.sensor)}${bcfg.controller === 'neurons' ? ' · ' + (bcfg.neuronModel === 'alif_surrogate' ? 'ALIF' : 'LIF') : ''}` : '—';
+  $('kpiBest').title = best || '';
+  const bs = best ? rows.find((r) => r.id === best).s : null;
+  $('kpiBestS').textContent = bs ? `${(bs.rate * 100).toFixed(0)}% · ${bs.meanT}s` : '';
+  const nAct = B.slots.filter((s) => s.active).length;
+  $('kpiLive').innerHTML = B.running ? `<span class="pulse"></span>${nAct}/${B.slots.filter((s) => s.cfg).length} ${t('mlabRunning')}` : t('mlabIdle');
+  $('kpiLiveS').textContent = B.running && curRunId ? curRunId : '';
+  renderResUsage();
+}
+function renderAnalysis() {
+  if (!SHOW_GRAPHS) return;
+  const ids = Object.keys(B.perConfig);
+  if (!ids.length) { $('analysisOut').textContent = t('mlabWaiting'); return; }
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const rows = ids.map((id) => {
+    const runs = B.perConfig[id].runs;
+    const s = summarizeRuns(runs);
+    const fails = {};
+    for (const r of runs) if (!r.success) { const k = reasonLabel(r.reason || '?'); fails[k] = (fails[k] || 0) + 1; }
+    const verdict = !runs.length ? '—' : s.rate >= 1 ? t('mlabVStable') : s.rate >= .5 ? t('mlabVUnstable') : t('mlabVFalling');
+    return { id, s, verdict, meanR: runs.length ? +mean(runs.map((r) => r.reward)).toFixed(2) : '—', fails: Object.entries(fails).map(([k, v]) => `${k}×${v}`).join(' ') || '—' };
+  });
+  rows.sort((a, b) => (b.s.rate - a.s.rate) || (a.s.meanT - b.s.meanT) || (a.s.meanC - b.s.meanC));
+  const best = rows[0]?.id;
+  $('analysisOut').innerHTML = `<div class="note" style="margin-bottom:6px">${t('mlabBest')}: <b>${best || '—'}</b></div>`
+    + rows.map(({ id, s }) => `<div class="sbar"><span>${id}</span><span class="track"><span class="fill" style="display:block;width:${(s.rate * 100).toFixed(0)}%"></span></span><span class="pc">${(s.rate * 100).toFixed(0)}%</span></div>`).join('')
+    + `<div id="donutWrap"><canvas id="failDonut" width="220" height="220"></canvas><span class="note" id="donutLegend"></span></div>`
+    + `<table><thead><tr><th>${t('mlabThCfg')}</th><th>${t('mlabThVerdict')}</th><th>${t('mlabThReward')}</th><th>${t('mlabThFail')}</th></tr></thead><tbody>${
+      rows.map(({ id, verdict, meanR, fails }) => `<tr class="${id === best ? 'best' : ''}"><td>${id}</td><td>${verdict}</td><td>${meanR}</td><td>${fails}</td></tr>`).join('')
+    }</tbody></table>`;
+  drawDonut();
+}
+function drawDonut() {
+  const cv = $('failDonut');
+  if (!cv) return;
+  const ctx = cv.getContext('2d');
+  const counts = { goal: 0, timeout: 0, stopped: 0 };
+  for (const id of Object.keys(B.perConfig)) for (const r of B.perConfig[id].runs) {
+    const k = r.success ? 'goal' : (r.reason === 'timeout' ? 'timeout' : 'stopped');
+    counts[k] = (counts[k] || 0) + 1;
+  }
+  const total = counts.goal + counts.timeout + counts.stopped;
+  const cx = 110, cy = 110, R = 90, r = 58;
+  ctx.clearRect(0, 0, 220, 220);
+  const segs = [['goal', '#62e5b2'], ['timeout', '#f5b942'], ['stopped', '#71859a']];
+  if (!total) {
+    ctx.beginPath(); ctx.arc(cx, cy, R, 0, 7); ctx.arc(cx, cy, r, 0, 7, true);
+    ctx.fillStyle = '#243348'; ctx.fill();
+    $('donutLegend').textContent = t('mlabWaiting');
+    return;
+  }
+  let a = -Math.PI / 2;
+  for (const [k, color] of segs) {
+    const frac = counts[k] / total;
+    if (!frac) continue;
+    const a2 = a + frac * Math.PI * 2;
+    ctx.beginPath(); ctx.arc(cx, cy, R, a, a2); ctx.arc(cx, cy, r, a2, a, true); ctx.closePath();
+    ctx.fillStyle = color; ctx.fill();
+    a = a2;
+  }
+  ctx.fillStyle = '#e8eef7'; ctx.font = '700 34px system-ui'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(`${(counts.goal / total * 100).toFixed(0)}%`, cx, cy);
+  $('donutLegend').textContent = `${t('mlabGoal')} ${counts.goal} · ${t('mlabTimeout')} ${counts.timeout} · ${t('mlabStopped')} ${counts.stopped}`;
+}
+async function saveSession() {
+  const dup = await dbGet(curRunId);
+  const rec = {
+    runId: curRunId, maze: curMaze, hazards: HAZARDS,
+    runsEach: curRunsEach, seedBase: curSeedBase,
+    stamps: { version: NSP3D_VERSION, build: BUILD, decoder: DECODER_BUILD, controller: CONTROLLER_BUILD, snn: SNN_BUILD },
+    startedAt: new Date(B.sessionStart).toISOString(), endedAt: new Date().toISOString(),
+    perConfig: B.perConfig, flightLog: B.flightLog,
+  };
+  await dbPut(rec);
+  log(t('mlabLogSavedFmt')(curRunId, B.flightLog.length, dup));
+  renderAggregate();
+  renderSessions();
+  if ($('autoDl').checked) {
+    log(t('mlabLogAutoDl'));
+    for (const k of ['json', 'log', 'csv']) { try { await exportSession(curRunId, k); } catch (e) { log(t('mlabLogAutoFailFmt')(k, (e && e.message) || e)); } await sleep(600); }
+  }
+}
+
+// ---------- export (same schema as batch runner: analyze.py-compatible) ----------
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+async function saveFile(name, text, type = 'application/json') {
+  // Local-first: POST to save_server.py when it runs, else browser download.
+  try {
+    const ac = new AbortController();
+    const to = setTimeout(() => ac.abort(), 30000);
+    const res = await fetch(SAVE_SERVER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Filename': name },
+      body: text,
+      signal: ac.signal,
+    });
+    clearTimeout(to);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    return 'post';
+  } catch (e) { download(name, text, type); return 'download'; }
+}
+function bestConfigId(perConfig) {
+  const ids = Object.keys(perConfig).filter((id) => perConfig[id].runs.length);
+  ids.sort((a, b) => {
+    const sa = summarizeRuns(perConfig[a].runs), sb = summarizeRuns(perConfig[b].runs);
+    return (sb.rate - sa.rate) || (sa.meanT - sb.meanT) || (sa.meanC - sb.meanC);
+  });
+  return ids[0] || null;
+}
+function resultsPayload(rec) {
+  return JSON.stringify({
+    schema: 'nsp3d-experiment-results/1.2', created_at: rec.endedAt,
+    version: rec.stamps.version, build: rec.stamps.build,
+    decoder_build: rec.stamps.decoder, controller_build: rec.stamps.controller, snn_build: rec.stamps.snn,
+    group: rec.runId, configs: rec.perConfig, best_config: bestConfigId(rec.perConfig),
+  }, null, 1);
+}
+function csvPayload(rec) {
+  const head = 'config_id,run,seed,slot,success,reason,elapsed_s,collisions,path_m,avg_speed,final_d,reward';
+  const lines = [head];
+  for (const id of Object.keys(rec.perConfig)) for (const r of rec.perConfig[id].runs) {
+    lines.push([id, r.run, r.seed, r.slot, r.success, r.reason, r.elapsed_s, r.collisions, r.path_m, r.avg_speed, r.final_d, r.reward].join(','));
+  }
+  return lines.join('\n');
+}
+function logPayload(rec) { return rec.flightLog.map((r) => JSON.stringify(r)).join('\n'); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function exportSession(runId, kind) {
+  try {
+    const rec = await dbGet(runId);
+    if (!rec) { log(t('mlabLogNothingFmt')(runId)); return; }
+    const tag = `${stampOf(new Date(rec.endedAt))}_${rec.runId}`;
+    const [fname, payload, ftype] = kind === 'log' ? [`flight_log_${tag}.jsonl`, logPayload(rec), 'application/x-ndjson']
+      : kind === 'csv' ? [`results_${tag}.csv`, csvPayload(rec), 'text/csv']
+      : [`results_${tag}.json`, resultsPayload(rec), 'application/json'];
+    const how = await saveFile(fname, payload, ftype);
+    log(t('mlabLogExportFmt')(runId, kind, how === 'post' ? t('mlabWhereServer') : t('mlabWhereDl'), fname));
+    if (how === 'post') toast(`${t('mlabToastSaved')}: ${fname}`);
+  } catch (e) { log(t('mlabLogExportFailFmt')(runId, kind, (e && e.message) || e)); }
+}
+async function renderSessions() {
+  const all = (await dbAll()).sort((a, b) => a.endedAt.localeCompare(b.endedAt));
+  if (!all.length) { $('sessOut').textContent = t('mlabDbEmpty'); return; }
+  $('sessOut').innerHTML = `<table><thead><tr><th>${t('mlabThSess')}</th><th>${t('mlabThEnded')}</th><th>${t('mlabThMaze')}</th><th>${t('mlabThCfgs')}</th><th>${t('mlabThExp')}</th></tr></thead><tbody>${
+    all.map((r) => {
+      const agents = Object.values(r.perConfig).map((p) => {
+        const c = p.config || {};
+        const m = (c.config_id || '').match(/_s(\d)$/);
+        const si = m ? +m[1] : 0;
+        const dot = `<span class="rankdot" style="background:${AGENT_COLORS[AGENTS[si]] || '#71859a'}"></span>`;
+        const s = summarizeRuns(p.runs || []);
+        const res = s.n ? ` — ${s.ok}/${s.n}${Number.isFinite(s.meanT) ? ` · ${s.meanT.toFixed(1)}s` : ''}` : '';
+        return `${dot}AGENT ${AGENTS[si]} · ${shortCtl(c.controller)} · ${shortEye(c.visionMode)} · ${shortSen(c.sensor)}${res}`;
+      }).join('<br>');
+      return `<tr><td>${r.runId}</td><td>${fmtLocal(r.endedAt)}</td><td>${mazeName(r.maze)}</td><td>${agents}</td><td data-sess="${r.runId}"></td></tr>`;
+    }).join('')
+  }</tbody></table>`;
+  $('sessOut').querySelectorAll('[data-sess]').forEach((td) => {
+    for (const k of ['json', 'log', 'csv']) {
+      const b = document.createElement('button');
+      b.textContent = k; b.style.marginRight = '4px';
+      b.addEventListener('click', () => exportSession(td.dataset.sess, k));
+      td.appendChild(b);
+    }
+  });
+}
+$('expAllJson').addEventListener('click', async () => { for (const r of await dbAll()) { try { await exportSession(r.runId, 'json'); } catch (e) { log(t('mlabLogExpAllFailFmt')('json', (e && e.message) || e)); } await sleep(400); } });
+$('expAllLog').addEventListener('click', async () => { for (const r of await dbAll()) { try { await exportSession(r.runId, 'log'); } catch (e) { log(t('mlabLogExpAllFailFmt')('log', (e && e.message) || e)); } await sleep(400); } });
+$('expAllCsv').addEventListener('click', async () => { for (const r of await dbAll()) { try { await exportSession(r.runId, 'csv'); } catch (e) { log(t('mlabLogExpAllFailFmt')('csv', (e && e.message) || e)); } await sleep(400); } });
+$('clearDb').addEventListener('click', async () => { if (!confirm(t('mlabClearDbWarn'))) return; await dbClear(); log(t('mlabLogDbCleared')); renderSessions(); });
+function sizeExpButtons() { // 4 export buttons: same width = longest label, no stretch
+  const btns = [...document.querySelectorAll('.exp-actions button')];
+  if (!btns.length) return;
+  btns.forEach((b) => { b.style.width = 'auto'; });
+  const w = Math.max(...btns.map((b) => b.offsetWidth));
+  btns.forEach((b) => { b.style.width = w + 'px'; });
+}
+
+// ---------- main loop ----------
+let lastTs = 0, lastUi = 0;
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const frameDt = (ts - lastTs) / 1000 || 0.016;
+  lastTs = ts;
+  if (!B.running) return;
+  const fi = (B.frameCount = (B.frameCount || 0) + 1); // display frames only; sim stepping untouched
+  for (const sl of B.slots) {
+    if (!sl.active) continue;
+    // Speed multiplier: repeat the fixed-step pass like the main sim (1x/2x/3x),
+    // so low-fps behavior matches instead of dropping at the 5-step cap.
+    const reps = Math.max(1, Math.round(SIM_SPEED));
+    for (let k = 0; k < reps && !sl.fly.done; k++) {
+      const tick = consumeSteps(sl.simAcc, frameDt);
+      sl.simAcc = tick.acc;
+      B.dropped += tick.dropped || 0;
+      for (let i = 0; i < tick.steps && !sl.fly.done; i++) {
+        const brain = runStep(sl, SIM_STEP_H);
+        if (updateBeeVision(sl)) logRow(sl, sl.curSeed, brain);
+        sl.stepsCount++;
+        if (B.stopReq) break;
+      }
+      if (B.stopReq) break;
+    }
+    sl.marker.position.set(sl.bee.position.x, 0, sl.bee.position.z); // ground-anchored beacon
+    // Observer stagger: each slot renders every 3rd display frame, offset by slot.
+    // Display-only — physics/NN/vision stepping above is untouched (BA lag review 2026-11-01).
+    if ((fi + sl.idx) % 3 === 0) sl.renderer.render(sl.H.scene, sl.H.observerCamera);
+    if (B.stopReq || sl.fly.done) {
+      finishRun(sl, B.stopReq ? 'stopped' : (sl.fly.success ? 'goal' : 'timeout'));
+      sl.runIdx++;
+      if (B.stopReq || sl.runIdx >= sl.runsTotal) { sl.active = false; sl.dom.classList.add('off'); }
+      else sl.curSeed = resetRun(sl);
+    }
+  }
+  const finishing = B.stopReq || !B.slots.some((s) => s.active);
+  if (finishing || ts - lastUi > 500) {
+    lastUi = ts;
+    for (const sl of B.slots) {
+      if (!sl.cfg) continue;
+      drawStrip(sl);
+      const store = B.perConfig[sl.cfg.config_id];
+      if (store && store.runs.length) {
+        const s = summarizeRuns(store.runs);
+        sl.dom.querySelector('[data-m=rate]').textContent = `${(s.rate * 100).toFixed(0)}%`;
+        sl.dom.querySelector('[data-m=time]').textContent = `${s.meanT}s`;
+        sl.dom.querySelector('[data-m=coll]').textContent = `${s.meanC}`;
+      }
+      sl.dom.classList.toggle('active', sl.active);
+      const badge = sl.dom.querySelector('.sbadge');
+      const dot = sl.dom.querySelector('.sdot');
+      const store0 = sl.cfg ? B.perConfig[sl.cfg.config_id] : null;
+      const doneN = store0 ? store0.runs.length : 0;
+      if (!sl.cfg || (!sl.active && !doneN)) { badge.textContent = ''; badge.className = 'sbadge'; dot.className = 'sdot idle'; sl.dom.querySelector('.spct').textContent = ''; sl.dom.querySelector('.seta').textContent = ''; }
+      else if (sl.active) {
+        badge.textContent = '\u00a0'; badge.className = 'sbadge run'; dot.className = 'sdot run';
+        const pct = Math.min(99, Math.round(doneN / sl.runsTotal * 100));
+        sl.dom.querySelector('.spct').textContent = `${t('mlabStRun')} ${Math.min(doneN + 1, sl.runsTotal)}/${sl.runsTotal} · ${pct}%`;
+        const avg = doneN ? store0.runs.reduce((a, r) => a + r.elapsed_s, 0) / doneN : sl.cfg.max_time_s;
+        const etaWall = Math.max(0, (avg * (sl.runsTotal - doneN) - (sl.fly ? sl.fly.elapsed : 0)) / SIM_SPEED);
+        const totT = (doneN ? store0.runs.reduce((a, r) => a + r.elapsed_s, 0) : 0) + (sl.fly ? sl.fly.elapsed : 0);
+        sl.dom.querySelector('.seta').textContent = `t=${totT.toFixed(1)}s · ETA ${etaWall >= 60 ? (etaWall / 60).toFixed(1) + 'm' : Math.round(etaWall) + 's'}`;
+      } else {
+        badge.textContent = t('mlabVDone'); badge.className = 'sbadge done'; dot.className = 'sdot done';
+        sl.dom.querySelector('.spct').textContent = `${doneN}/${sl.runsTotal} · ${sl.runsTotal ? Math.round(doneN / sl.runsTotal * 100) : 0}%`;
+        sl.dom.querySelector('.seta').textContent = store0 ? `t=${store0.runs.reduce((a, r) => a + r.elapsed_s, 0).toFixed(1)}s` : '';
+      }
+      sl.dom.querySelector('.sprog i').style.width = sl.runsTotal ? `${Math.min(100, Math.round(doneN / sl.runsTotal * 100))}%` : '0';
+      const el = (ts - sl.stepsT0) / 1000;
+      const spd = el > 0 ? Math.round(sl.stepsCount / el) : 0;
+      sl.dom.querySelector('.sstat').textContent = sl.fly
+        ? `${t('mlabStRun')} ${Math.min(sl.runIdx + 1, sl.runsTotal)}/${sl.runsTotal} t=${sl.fly.elapsed.toFixed(1)}s ${t('mlabStCol')}=${sl.fly.collisions} ${t('mlabStRew')}=${sl.fly.reward.toFixed(1)} ${spd} steps/s ${sl.fly.done ? (sl.fly.success ? t('mlabGoal') : t('mlabTimeout')) : ''}`
+        : '—';
+    }
+    renderAggregate();
+    renderReward();
+    if (B.running) {
+      let rem = 0, runs = 0;
+      for (const sl of B.slots) {
+        if (!sl.active || !sl.cfg) continue;
+        const st = B.perConfig[sl.cfg.config_id];
+        const avg = st.runs.length ? st.runs.reduce((a, r) => a + r.elapsed_s, 0) / st.runs.length : sl.cfg.max_time_s;
+        rem += avg * (sl.runsTotal - st.runs.length);
+        runs += sl.runsTotal - st.runs.length;
+      }
+      const wall = rem / SIM_SPEED / Math.max(1, B.slots.filter((s) => s.active).length);
+      $('estLine').textContent = `~${wall >= 60 ? (wall / 60).toFixed(1) + (getLang() === 'ko' ? '분' : 'min') : Math.round(wall) + (getLang() === 'ko' ? '초' : 's')} · ${t('mlabRunsCount')(runs)} · ${t('mlabEst')}`;
+    } else $('estLine').textContent = '';
+  }
+  if (finishing) {
+    if (R.recs.length) stopRecAll();
+    const stopped = B.stopReq;
+    B.running = false; B.stopReq = false;
+    for (const sl of B.slots) if (sl.cfg) sl.dom.classList.add('off');
+    updateRunBtn(); $('runBtn').classList.remove('running'); $('stopBtn').disabled = true; $('estLine').textContent = ''; $('labRes').textContent = '—'; resTs0 = 0;
+    if (stopped) { log(t('mlabLogStopped')); renderAggregate(); toast(t('mlabToastStopped')); }
+    else saveSession().then(() => toast(doneToast())).catch((e) => log(t('mlabLogDbSaveFailFmt')(e.message)));
+  }
+}
+$('seedIn').value = dateSeed();
+window.__labDbg = { build: BUILD, version: NSP3D_VERSION, get status() { return B.running ? 'running' : 'idle'; } };
+logRestore(); // before anything logs, so reloads never wipe history
+if (!$('log').textContent.trim()) $('log').textContent = t('mlabLogIdle') + '\n';
+renderFilters(); renderGrid(); updateRunBtn();
+renderMazeCards(); captureMazeThumbs();
+syncConfirmed(); // initial previews (also cleans thumbnail scratch renders)
+renderSessions();
+renderAggregate();
+renderReward();
+refreshSlotCfg();
+if (!SHOW_GRAPHS) for (const id of ['rewCanvas', 'runBars', 'histCanvas', 'scatCanvas', 'analysisOut']) { const el = $(id); const p = el && el.closest('.panel'); if (p) p.style.display = 'none'; }
+if (!SHOW_STRIPS) { const lg = document.querySelector('.legend'); if (lg) lg.style.display = 'none'; }
+sizeExpButtons();
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

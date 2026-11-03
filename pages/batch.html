@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSP3D Batch Runner (temporary, local-only)</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #060b16; color: #dbe7f3; font: 13px/1.5 system-ui, sans-serif; }
+  header { padding: 10px 14px; border-bottom: 1px solid #16233a; }
+  header h1 { font-size: 15px; margin: 0; }
+  header .sub { color: #8fa6c2; font-size: 12px; }
+  main { padding: 12px 14px; max-width: 900px; }
+  .panel { background: #0b1424; border: 1px solid #16233a; border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; }
+  .panel h2 { font-size: 12px; margin: 0 0 8px; color: #8fa6c2; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 8px; }
+  label { color: #8fa6c2; font-size: 12px; }
+  input[type=number] { background: #060b16; color: #dbe7f3; border: 1px solid #27405f; border-radius: 5px; padding: 4px 6px; font-size: 12px; }
+  button { background: #12325a; color: #dbe7f3; border: 1px solid #27405f; border-radius: 5px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  button:hover { background: #1a4478; }
+  button:disabled { opacity: .45; cursor: default; }
+  button.warn { background: #4a1620; border-color: #7a2a38; }
+  table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  th, td { border-bottom: 1px solid #16233a; padding: 4px 6px; text-align: left; font-variant-numeric: tabular-nums; }
+  tr.done td { color: #7dd3a8; }
+  tr.running td { color: #fbbf24; }
+  #log { font-family: ui-monospace, monospace; font-size: 11px; color: #b9cdf3; white-space: pre-wrap; max-height: 220px; overflow-y: auto; background: #060b16; border: 1px solid #16233a; border-radius: 5px; padding: 6px 8px; }
+  #progWrap { height: 14px; background: #060b16; border: 1px solid #27405f; border-radius: 7px; overflow: hidden; margin-bottom: 6px; }
+  #progBar { height: 100%; width: 0%; background: #1a7a4c; }
+  #progText { font-size: 12px; color: #b9cdf3; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  #errOverlay { display: none; background: #4a1620; color: #ffd7dc; padding: 8px 12px; font-size: 12px; white-space: pre-wrap; }
+  #slotGrid { display: none; }
+  .note { color: #8fa6c2; font-size: 11px; }
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="errOverlay"></div>
+<header>
+  <h1>NSP3D Batch Runner</h1>
+  <span class="sub">temporary one-click queue — same engine as experiment.html, no views/graphs, IndexedDB per group</span>
+</header>
+<main>
+  <div class="panel">
+    <h2>Queue 그룹 큐 (maze × experiment units, max 4 configs each)</h2>
+    <table id="qTable"><thead><tr><th></th><th>group</th><th>configs</th><th>status</th><th>export</th></tr></thead><tbody></tbody></table>
+  </div>
+  <div class="panel">
+    <h2>Run 실행</h2>
+    <div class="row">
+      <label>runs each <input id="runsIn" type="number" value="10" min="1" max="200" style="width:64px"></label>
+      <label>seed <input id="seedIn" type="number" value="20261029" style="width:110px"></label>
+      <button id="runAllBtn">Run all 전체실행</button>
+      <button id="stopBtn" class="warn" disabled>Stop 중지</button>
+    </div>
+    <div class="row">
+      <button id="expAllJson">Export all results.json</button>
+      <button id="expAllLog">Export all flight_log.jsonl</button>
+      <button id="expAllCsv">Export all results.csv</button>
+      <button id="clearDb" class="warn">Clear DB</button>
+    </div>
+    <div class="note">render always OFF (physics+neurons+vision capture only). Files land in browser download folder — move to experiments/results/.</div>
+  </div>
+  <div class="panel">
+    <h2>Progress 진행</h2>
+    <div id="progText">idle</div>
+    <div id="progWrap"><div id="progBar"></div></div>
+    <div id="log">idle\n</div>
+  </div>
+  <div id="slotGrid"></div>
+</main>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD, CAMERA_PIPELINE, NSP3D_VERSION, dateSeed } from '../src/config.js';
+import { DECODER_BUILD } from '../src/vision/camera-vision.js';
+import { createFlightConnectome, mergeFlightGraphs, SNN_BUILD } from '../src/nn/graph-network.js';
+import { senseVision, createCameraRuleController, CONTROLLER_BUILD } from '../src/sim/camera-controller.js';
+import { decayTouch, isStalled } from '../src/sim/flight-physics.js';
+import { consumeSteps, SIM_STEP_H } from '../src/sim/step-clock.js';
+import {
+  W, Y, Z, clamp, makeWorld, advanceWorld, buildStaticScene,
+  buildObstacleMesh, clearWorld, EyeRig, createFlightState, movement,
+} from '../src/sim/sim-core.js';
+import { createBee } from '../src/ui/hand-drawn-bee.js';
+
+const $ = (id) => document.getElementById(id);
+const errBox = $('errOverlay');
+const BUILD = '2026-10-29.7+vfh-valley';
+window.addEventListener('error', (e) => { errBox.style.display = 'block'; errBox.textContent = 'Error: ' + (e.message || e.error); });
+window.addEventListener('unhandledrejection', (e) => { errBox.style.display = 'block'; errBox.textContent = 'Error: ' + (e.reason?.message || e.reason); });
+document.title = `[${NSP3D_VERSION}] ` + document.title;
+let origTitle = document.title;
+
+const Q = new URLSearchParams(location.search);
+// Group queue: maze x experiment units (each <= 4 configs = 4 slots).
+const GROUPS = [
+  { id: 'g0-corridorA45', label: 'corridor sens0.45', configs: ['cfg01', 'cfg02', 'cfg03'] },
+  { id: 'g1-corridorB10', label: 'corridor sens1.0 neurons', configs: ['cfg13', 'cfg14', 'cfg15', 'cfg16'] },
+  { id: 'g2-corridorCrule', label: 'corridor rule', configs: ['cfg17', 'cfg22'] },
+  { id: 'g3-maze2', label: 'maze2', configs: ['cfg04', 'cfg05', 'cfg06'] },
+  { id: 'g4-maze6', label: 'maze6 speed', configs: ['cfg07', 'cfg08', 'cfg09'] },
+  { id: 'g5-simpleEmpty', label: 'simple+empty', configs: ['cfg10', 'cfg11', 'cfg12'] },
+  { id: 'g6-multi', label: 'multi maze6', configs: ['cfg18', 'cfg19', 'cfg20', 'cfg21'] },
+  { id: 'g7-sensMultiMono', label: 'sensor multi mono', configs: ['cfg23', 'cfg24', 'cfg25', 'cfg26'] },
+  { id: 'g8-sensMultiBino', label: 'sensor multi bino', configs: ['cfg27', 'cfg28', 'cfg29', 'cfg30'] },
+  { id: 'g9-sensMaze6Mono', label: 'sensor maze6 mono', configs: ['cfg31', 'cfg32', 'cfg33', 'cfg34'] },
+  { id: 'g10-sensMaze6Bino', label: 'sensor maze6 bino', configs: ['cfg35', 'cfg36', 'cfg37', 'cfg38'] },
+  { id: 'g11-corRuleMono', label: 'corRuleMono', configs: ['cfg39', 'cfg40', 'cfg41', 'cfg42'] },
+  { id: 'g12-corRuleBino', label: 'corRuleBino', configs: ['cfg43', 'cfg44', 'cfg45', 'cfg46'] },
+  { id: 'g13-corLifMono', label: 'corLifMono', configs: ['cfg47', 'cfg48', 'cfg49', 'cfg50'] },
+  { id: 'g14-corLifBino', label: 'corLifBino', configs: ['cfg51', 'cfg52', 'cfg53', 'cfg54'] },
+  { id: 'g15-corAlifMono', label: 'corAlifMono', configs: ['cfg55', 'cfg56', 'cfg57', 'cfg58'] },
+  { id: 'g16-corAlifBino', label: 'corAlifBino', configs: ['cfg59', 'cfg60', 'cfg61', 'cfg62'] },
+  { id: 'g17-mulRuleMono', label: 'mulRuleMono', configs: ['cfg63', 'cfg64', 'cfg65', 'cfg66'] },
+  { id: 'g18-mulRuleBino', label: 'mulRuleBino', configs: ['cfg67', 'cfg68', 'cfg69', 'cfg70'] },
+  { id: 'g19-mulLifMono', label: 'mulLifMono', configs: ['cfg71', 'cfg72', 'cfg73', 'cfg74'] },
+  { id: 'g20-mulLifBino', label: 'mulLifBino', configs: ['cfg75', 'cfg76', 'cfg77', 'cfg78'] },
+  { id: 'g21-mulAlifMono', label: 'mulAlifMono', configs: ['cfg79', 'cfg80', 'cfg81', 'cfg82'] },
+  { id: 'g22-mulAlifBino', label: 'mulAlifBino', configs: ['cfg83', 'cfg84', 'cfg85', 'cfg86'] },
+];
+const META = await fetch('../experiments/configs.json').then((r) => r.json());
+const CONFIGS = META.configs;
+const MAZES = await fetch('../experiments/mazes.json').then((r) => r.json());
+const shellOf = (id) => MAZES.mazes.find((m) => m.id === id) || { id, builtin: id };
+const byId = (id) => CONFIGS.find((c) => c.config_id === id);
+// maze 1/3 hidden (retest later): drop hidden-shell configs, hide emptied groups
+for (const g of GROUPS) {
+  g.configs = g.configs.filter((id) => {
+    const c = byId(id);
+    if (!c) return true;
+    const b = (shellOf(c.maze) || {}).builtin;
+    return b !== 'open_arena' && b !== 's_maze';
+  });
+  if (!g.configs.length) g._hidden = true;
+}
+
+// ---------- shared assets (same as experiment.html) ----------
+async function loadGraphFile(url) {
+  const text = await (await fetch(url)).text();
+  const m = text.match(/window\.(?:FLIGHT_GRAPH|FLIGHT_CIRCUIT_EXTENSION)\s*=\s*(\{[\s\S]*\});?\s*$/);
+  const obj = m ? JSON.parse(m[1]) : JSON.parse(text);
+  if (!obj.edges && Array.isArray(obj.pairs)) {
+    obj.edges = obj.pairs.map((p) => ({ source: p.src ?? p.source, target: p.dst ?? p.target, weight: p.w ?? p.weight }));
+  }
+  return obj;
+}
+let loadedGraph = null;
+try {
+  const base = await loadGraphFile('../vendor/connectome/flight-graph.js');
+  const ext = await loadGraphFile('../vendor/connectome/flight-circuit-extension.js');
+  loadedGraph = mergeFlightGraphs(base, ext);
+} catch (e) { errBox.style.display = 'block'; errBox.textContent = 'graph load failed: ' + e.message; }
+let pretrained = null;
+try { pretrained = await fetch('../data/pretrained-gains.json').then((r) => r.json()); } catch (e) { /* optional */ }
+async function ensureAlif() {
+  if (globalThis.ALIFSurrogatePlugin) return true;
+  try {
+    const m = await import('../src/vision/alif-surrogate-plugin.js');
+    globalThis.ALIFSurrogatePlugin = m.ALIFSurrogatePlugin;
+    return true;
+  } catch (e) { return false; }
+}
+let STALE_MODULES = null;
+async function checkFreshness() {
+  try {
+    const fresh = await import(`../src/vision/camera-vision.js?v=${encodeURIComponent(BUILD)}`);
+    if (fresh.DECODER_BUILD !== DECODER_BUILD) STALE_MODULES = `decoder static=${DECODER_BUILD} fresh=${fresh.DECODER_BUILD}`;
+    const freshCtl = await import(`../src/sim/camera-controller.js?v=${encodeURIComponent(BUILD)}`);
+    if (freshCtl.CONTROLLER_BUILD !== CONTROLLER_BUILD) STALE_MODULES = (STALE_MODULES ? STALE_MODULES + '; ' : '') + `controller static=${CONTROLLER_BUILD} fresh=${freshCtl.CONTROLLER_BUILD}`;
+    const freshSnn = await import(`../src/nn/graph-network.js?v=${encodeURIComponent(BUILD)}`);
+    if (freshSnn.SNN_BUILD !== SNN_BUILD) STALE_MODULES = (STALE_MODULES ? STALE_MODULES + '; ' : '') + `snn static=${SNN_BUILD} fresh=${freshSnn.SNN_BUILD}`;
+  } catch (e) { STALE_MODULES = 'freshness check failed: ' + (e.message || e); }
+  if (STALE_MODULES) { errBox.style.display = 'block'; errBox.textContent = 'STALE MODULES — Ctrl+F5 until this clears. ' + STALE_MODULES; }
+  return STALE_MODULES;
+}
+const freshnessChecked = checkFreshness();
+
+// ---------- IndexedDB (per-group persistence) ----------
+const DB_NAME = 'nsp3d-batch', DB_STORE = 'groups';
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(DB_STORE, { keyPath: 'groupId' }); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+let _db = null;
+async function db() { if (!_db) _db = await openDb(); return _db; }
+async function dbPut(rec) {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).put(rec);
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+async function dbGet(groupId) {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const rq = d.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(groupId);
+    rq.onsuccess = () => resolve(rq.result || null); rq.onerror = () => reject(rq.error);
+  });
+}
+async function dbAll() {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const rq = d.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).getAll();
+    rq.onsuccess = () => resolve(rq.result || []); rq.onerror = () => reject(rq.error);
+  });
+}
+async function dbClear() {
+  const d = await db();
+  return new Promise((resolve, reject) => {
+    const tx = d.transaction(DB_STORE, 'readwrite');
+    tx.objectStore(DB_STORE).clear();
+    tx.oncomplete = resolve; tx.onerror = () => reject(tx.error);
+  });
+}
+
+// ---------- sim engine (byte-identical logic to experiment.html) ----------
+const ZERO_VISION = () => ({
+  leftThreat: 0, rightThreat: 0, frontThreat: 0, upThreat: 0, downThreat: 0,
+  loomingL: 0, loomingR: 0, motionL: 0, motionR: 0, escapeDirection: 1,
+  grid: Array(9).fill(0), upperRoute: 0, lowerRoute: 0, centerObstacle: 0,
+  goalPixels: 0, goalVisible: 0, goalLockX: 0, goalLockY: 0,
+});
+const r4 = (v) => +Number(v).toFixed(4);
+const B = { slots: [], running: false, stopReq: false, renderOn: false, flightLog: [], perConfig: {}, batchDone: true };
+function createSlotDom(idx) {
+  const div = document.createElement('div');
+  div.className = 'slot';
+  div.innerHTML = `<div class="shead"><span class="stitle">slot ${idx}</span><span class="ssteps">— steps/s</span></div><div class="sview"></div><div class="sstat">idle</div>`;
+  $('slotGrid').appendChild(div);
+  return div;
+}
+function createSlot(idx) {
+  const dom = createSlotDom(idx);
+  const renderer = new THREE.WebGLRenderer({ antialias: false });
+  renderer.toneMapping = THREE.NoToneMapping;
+  renderer.setPixelRatio(1);
+  const vw = 308, vh = 150;
+  renderer.setSize(vw, vh);
+  dom.querySelector('.sview').appendChild(renderer.domElement);
+  const H = buildStaticScene();
+  H.scene.background = new THREE.Color(0x060914);
+  const bee = createBee(THREE, { wingScale: 0.83 });
+  bee.traverse((o) => o.layers.set(1));
+  H.scene.add(bee);
+  H.observerCamera.position.set(0, 0.62, 0.78);
+  H.observerCamera.lookAt(0, 0.02, 0);
+  H.observerCamera.aspect = vw / vh;
+  H.observerCamera.updateProjectionMatrix();
+  return {
+    idx, dom, renderer, H, bee, rig: new EyeRig(renderer, H, bee, H.goalGroup),
+    viewW: vw, viewH: vh,
+    cfg: null, runIdx: 0, runsTotal: 0, seedBase: 0, active: false,
+    obstacles: [], start: null, goal: null, fly: null, net: null, rule: null,
+    touch: null, pathLen: 0, lastTurn: 0, lastClimb: 0,
+    latestVision: ZERO_VISION(), visionSimLast: -Infinity, simAcc: 0,
+    stepsCount: 0, stepsT0: performance.now(),
+  };
+}
+function setWorld(sl, seed, mazeBuiltin) {
+  clearWorld(sl.H.scene, sl.obstacles);
+  const w = makeWorld(seed, mazeBuiltin);
+  sl.obstacles = sl.cfg.hazards === 'none' ? w.obstacles.filter((o) => o.type === 'wall') : w.obstacles;
+  sl.start = w.start; sl.goal = w.goal;
+  for (const o of sl.obstacles) { o.mesh = buildObstacleMesh(o); sl.H.scene.add(o.mesh); }
+  sl.H.goalGroup.position.set(sl.goal.x, .02, sl.goal.z);
+}
+function resetRun(sl) {
+  const seed = sl.seedBase + sl.runIdx;
+  setWorld(sl, seed, shellOf(sl.cfg.maze).builtin || sl.cfg.maze);
+  sl.fly = createFlightState(sl.start, sl.goal);
+  sl.rule = createCameraRuleController();
+  sl.touch = null; sl.pathLen = 0; sl.lastTurn = 0; sl.lastClimb = 0;
+  sl.latestVision = ZERO_VISION(); sl.visionSimLast = -Infinity; sl.simAcc = 0;
+  sl.net = createFlightConnectome(loadedGraph, { mode: sl.cfg.visionMode, neuronRule: sl.cfg.neuronModel });
+  if (pretrained?.gains) { try { sl.net.loadWeights(pretrained.gains); } catch (e) { /* keep init */ } }
+  sl.rig.reset();
+  sl.bee.position.set(sl.start.x, sl.start.y, sl.start.z);
+  sl.bee.rotation.set(0, -sl.fly.yaw, 0, 'YXZ');
+  advanceWorld(sl.obstacles, 0, true);
+  updateBeeVision(sl, true);
+  return seed;
+}
+function updateBeeVision(sl, force = false) {
+  if (!force && sl.fly.elapsed - sl.visionSimLast < CAMERA_PIPELINE.updateIntervalMs / 1000) return false;
+  sl.visionSimLast = sl.fly.elapsed;
+  const { signal } = sl.rig.captureBeeVision({ pos: sl.fly.pos, yaw: sl.fly.yaw, pitch: sl.fly.pitch }, sl.cfg.visionMode, sl.cfg.sensor);
+  sl.latestVision = signal;
+  return true;
+}
+function runStep(sl, dt) {
+  advanceWorld(sl.obstacles, sl.fly.elapsed, true);
+  const brain = senseVision(sl.fly.pos, sl.fly.yaw, sl.fly.pitch, sl.latestVision, { sensitivity: sl.cfg.vision_sensitivity, neuronRule: sl.cfg.neuronModel, eyeMode: sl.cfg.visionMode });
+  brain.dt = dt;
+  brain.touch = sl.touch;
+  brain.stalled = isStalled(sl.fly.odo);
+  const decision = (sl.cfg.controller || 'neurons') === 'camera' ? sl.rule.step(brain) : sl.net.step(brain);
+  const ox = sl.fly.pos.x, oy = sl.fly.pos.y, oz = sl.fly.pos.z;
+  const m = movement(sl.fly, decision, dt, sl.obstacles, {
+    speed: sl.cfg.cruise_ms, learning: false, brain, goal: sl.goal, collisionPenalty: 1.5, timeLimit: sl.cfg.max_time_s,
+  });
+  sl.touch = m.touch ? { side: m.touch.side, mag: m.touch.mag } : decayTouch(sl.touch, dt);
+  sl.pathLen += Math.hypot(sl.fly.pos.x - ox, sl.fly.pos.y - oy, sl.fly.pos.z - oz);
+  sl.lastTurn = m.activeTurn ?? decision.turn ?? 0;
+  sl.lastClimb = m.climb || 0;
+  sl.bee.position.set(sl.fly.pos.x, sl.fly.pos.y, sl.fly.pos.z);
+  sl.bee.rotation.set(sl.fly.pitch, -sl.fly.yaw, 0, 'YXZ');
+  return brain;
+}
+function logRow(sl, seed, brain) {
+  B.flightLog.push({
+    t: r4(sl.fly.elapsed), config_id: sl.cfg.config_id, slot: sl.idx, run: sl.runIdx, seed,
+    vision_sensitivity: sl.cfg.vision_sensitivity,
+    pos: { x: r4(sl.fly.pos.x), y: r4(sl.fly.pos.y), z: r4(sl.fly.pos.z) },
+    yaw: r4(sl.fly.yaw), pitch: r4(sl.fly.pitch),
+    L: r4(brain.leftThreat), F: r4(brain.frontThreat), R: r4(brain.rightThreat),
+    U: r4(brain.upThreat), D: r4(brain.downThreat),
+    upR: r4((brain.gridWall || [])[1]), cR: r4((brain.gridWall || [])[4]), loR: r4((brain.gridWall || [])[7]),
+    upM: r4((brain.grid || [])[1]), loM: r4((brain.grid || [])[7]),
+    esc: brain.escapeDirection ?? 0, stall: brain.stalled ? 1 : 0,
+    turn: r4(sl.lastTurn), climb: r4(sl.lastClimb),
+    reward: r4(sl.fly.reward), collision: sl.fly.collisions,
+  });
+}
+function ensureSlots(n) {
+  while (B.slots.length < n) B.slots.push(createSlot(B.slots.length));
+  B.slots.forEach((sl, i) => { if (i >= n) sl.active = false; });
+}
+function summarizeRuns(runs) {
+  const ok = runs.filter((r) => r.success);
+  const mean = (a) => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  return { n: runs.length, rate: runs.length ? ok.length / runs.length : 0, meanT: +mean(runs.map((r) => r.elapsed_s)).toFixed(2), meanC: +mean(runs.map((r) => r.collisions)).toFixed(2) };
+}
+function bestConfigId(perConfig) {
+  const ids = Object.keys(perConfig).filter((id) => perConfig[id].runs.length);
+  ids.sort((a, b) => {
+    const sa = summarizeRuns(perConfig[a].runs), sb = summarizeRuns(perConfig[b].runs);
+    return (sb.rate - sa.rate) || (sa.meanT - sb.meanT) || (sa.meanC - sb.meanC);
+  });
+  return ids[0] || null;
+}
+function finishRun(sl, reason) {
+  const d = Math.hypot(sl.goal.x - sl.fly.pos.x, sl.goal.y - sl.fly.pos.y, sl.goal.z - sl.fly.pos.z);
+  const elapsed = +sl.fly.elapsed.toFixed(2);
+  const store = B.perConfig[sl.cfg.config_id];
+  store.runs.push({
+    run: store.runs.length, seed: sl.curSeed, slot: sl.idx,
+    success: sl.fly.success, reason,
+    elapsed_s: elapsed, collisions: sl.fly.collisions,
+    path_m: +sl.pathLen.toFixed(3),
+    avg_speed: elapsed > 0 ? +(sl.pathLen / elapsed).toFixed(3) : 0,
+    final_d: +d.toFixed(4), reward: +sl.fly.reward.toFixed(3),
+  });
+  try { store.gains_end = sl.net.exportWeights(); } catch (e) { store.gains_end = null; }
+}
+
+// ---------- queue ----------
+const logEl = $('log');
+function log(msg) {
+  logEl.textContent += msg + '\n';
+  logEl.scrollTop = logEl.scrollHeight;
+}
+const queue = { groups: [], gi: 0, running: false, runsEach: 10, seedBase: dateSeed(), groupStart: 0 };
+function stampOf(d = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+}
+async function startGroup(g) {
+  const cfgs = g.configs.map(byId).filter(Boolean).slice(0, 4);
+  if (!cfgs.length) { log(`[${g.id}] no configs — skipped`); return false; }
+  if (cfgs.some((c) => c.neuronModel === 'alif_surrogate') && !(await ensureAlif())) {
+    errBox.style.display = 'block'; errBox.textContent = 'ALIF plugin failed to load.'; return false;
+  }
+  B.flightLog = []; B.perConfig = {}; B.stopReq = false; B.batchDone = false;
+  for (const c of cfgs) B.perConfig[c.config_id] = { config: c, runs: [], gains_end: null };
+  const share = cfgs.length === 1;
+  const nSlots = share ? 4 : cfgs.length;
+  ensureSlots(nSlots);
+  B.slots.forEach((sl, i) => {
+    if (i >= nSlots) { sl.active = false; return; }
+    sl.cfg = share ? cfgs[0] : cfgs[i];
+    sl.runIdx = 0;
+    sl.runsTotal = share ? Math.ceil(queue.runsEach / nSlots) : queue.runsEach;
+    sl.seedBase = queue.seedBase + (share ? i * 1000 : 0);
+    sl.curSeed = resetRun(sl);
+    sl.active = true;
+  });
+  queue.groupStart = Date.now();
+  B.running = true;
+  log(`[${g.id}] started (${cfgs.map((c) => c.config_id).join(',')}) x${queue.runsEach} seed=${queue.seedBase}`);
+  return true;
+}
+async function saveGroup(g) {
+  const rec = {
+    groupId: g.id, label: g.label, configs: g.configs,
+    runsEach: queue.runsEach, seedBase: queue.seedBase,
+    stamps: { version: NSP3D_VERSION, build: BUILD, decoder: DECODER_BUILD, controller: CONTROLLER_BUILD, snn: SNN_BUILD },
+    startedAt: new Date(queue.groupStart).toISOString(), endedAt: new Date().toISOString(),
+    perConfig: B.perConfig, flightLog: B.flightLog,
+  };
+  await dbPut(rec);
+  const ids = Object.keys(B.perConfig);
+  const line = ids.map((id) => { const s = summarizeRuns(B.perConfig[id].runs); return `${id} ${(s.rate * 100).toFixed(0)}%/${s.meanT}s/${s.meanC}c`; }).join(' ');
+  log(`[${g.id}] done+saved (${B.flightLog.length} rows): ${line}`);
+}
+function notifyDone(n) {
+  try {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('NSP3D batch done', { body: `${n} group(s) finished. Export files below.` });
+    }
+  } catch (e) { /* headless/no-permission: title fallback below */ }
+  document.title = `✅ DONE (${n}) ` + origTitle;
+}
+async function pumpQueue() {
+  if (!queue.running) return;
+  if (queue.gi >= queue.groups.length) {
+    queue.running = false;
+    $('runAllBtn').disabled = false; $('stopBtn').disabled = true;
+    log('ALL GROUPS DONE. Export files below.');
+    $('progBar').style.width = '100%';
+    $('progText').textContent = `done ${queue.groups.length}/${queue.groups.length} groups`;
+    notifyDone(queue.groups.length);
+    renderQueue();
+    return;
+  }
+  const g = queue.groups[queue.gi];
+  renderQueue();
+  if (!(await startGroup(g))) { queue.gi++; pumpQueue(); }
+}
+async function onGroupDone() {
+  if (queue.aborted) { queue.aborted = false; log('group discarded (stopped, not saved)'); renderQueue(); return; }
+  const g = queue.groups[queue.gi];
+  try { await saveGroup(g); } catch (e) { log(`[${g.id}] DB SAVE FAILED: ${e.message}`); queue.running = false; return; }
+  queue.gi++;
+  renderQueue();
+  pumpQueue();
+}
+
+// ---------- export ----------
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+function resultsPayload(rec) {
+  return JSON.stringify({
+    schema: 'nsp3d-experiment-results/1.2', created_at: rec.endedAt,
+    version: rec.stamps.version, build: rec.stamps.build,
+    decoder_build: rec.stamps.decoder, controller_build: rec.stamps.controller, snn_build: rec.stamps.snn,
+    group: rec.groupId, configs: rec.perConfig, best_config: bestConfigId(rec.perConfig),
+  }, null, 1);
+}
+function csvPayload(rec) {
+  const head = 'config_id,run,seed,slot,success,reason,elapsed_s,collisions,path_m,avg_speed,final_d,reward';
+  const lines = [head];
+  for (const id of Object.keys(rec.perConfig)) for (const r of rec.perConfig[id].runs) {
+    lines.push([id, r.run, r.seed, r.slot, r.success, r.reason, r.elapsed_s, r.collisions, r.path_m, r.avg_speed, r.final_d, r.reward].join(','));
+  }
+  return lines.join('\n');
+}
+function logPayload(rec) { return rec.flightLog.map((r) => JSON.stringify(r)).join('\n'); }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+async function exportGroup(groupId, kind) {
+  const rec = await dbGet(groupId);
+  if (!rec) { log(`[${groupId}] nothing in DB`); return; }
+  const tag = `${stampOf(new Date(rec.endedAt))}_${rec.groupId}`;
+  if (kind === 'log') download(`flight_log_${tag}.jsonl`, logPayload(rec), 'application/x-ndjson');
+  else if (kind === 'csv') download(`results_${tag}.csv`, csvPayload(rec), 'text/csv');
+  else download(`results_${tag}.json`, resultsPayload(rec));
+  log(`[${groupId}] exported ${kind}`);
+}
+async function exportAll(kind) {
+  const all = await dbAll();
+  if (!all.length) { log('DB empty — nothing to export'); return; }
+  for (const rec of all.sort((a, b) => a.groupId.localeCompare(b.groupId))) {
+    await exportGroup(rec.groupId, kind);
+    await sleep(500);
+  }
+}
+
+// ---------- queue UI ----------
+const rowRefs = {};
+function renderQueue() {
+  const tb = document.querySelector('#qTable tbody');
+  tb.innerHTML = '';
+  for (const k of Object.keys(rowRefs)) delete rowRefs[k];
+  dbAll().then((stored) => {
+    const have = new Set(stored.map((r) => r.groupId));
+    GROUPS.forEach((g, i) => {
+      if (g._hidden) return;
+      const tr = document.createElement('tr');
+      const st = queue.running && queue.groups[queue.gi] === g ? 'running'
+        : queue.groups.includes(g) && queue.groups.indexOf(g) < queue.gi ? 'done'
+        : have.has(g.id) ? 'done' : 'queued';
+      if (st === 'done') tr.className = 'done';
+      if (st === 'running') tr.className = 'running';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = !g._off; cb.disabled = queue.running;
+      cb.addEventListener('change', () => { g._off = !cb.checked; });
+      const tdc = document.createElement('td'); tdc.appendChild(cb);
+      const ex = document.createElement('td');
+      if (have.has(g.id)) {
+        for (const k of ['json', 'log', 'csv']) {
+          const b = document.createElement('button');
+          b.textContent = k; b.style.marginRight = '4px';
+          b.addEventListener('click', () => exportGroup(g.id, k));
+          ex.appendChild(b);
+        }
+      } else ex.textContent = '—';
+      tr.append(tdc);
+      const td = (t) => { const e = document.createElement('td'); e.textContent = t; return e; };
+      const stTd = td(st === 'running' ? `running ${activeProgress()}` : st);
+      tr.append(td(`${g.id} (${g.label})`), td(g.configs.join(',')), stTd, ex);
+      rowRefs[g.id] = { tr, stTd };
+      tb.appendChild(tr);
+    });
+  });
+}
+function tickProgress() {
+  if (!queue.running) return;
+  const g = queue.groups[queue.gi];
+  let total = 0, done = 0;
+  queue.groups.forEach((gg, i) => {
+    const n = gg.configs.length * queue.runsEach;
+    total += n;
+    if (i < queue.gi) done += n;
+    else if (i === queue.gi) done += Object.values(B.perConfig).reduce((a, p) => a + p.runs.length, 0);
+  });
+  if (g && rowRefs[g.id]) rowRefs[g.id].stTd.textContent = `running ${activeProgress()}`;
+  $('progBar').style.width = total ? `${(done / total * 100).toFixed(1)}%` : '0%';
+  $('progText').textContent = total
+    ? `group ${Math.min(queue.gi + 1, queue.groups.length)}/${queue.groups.length} · ${done}/${total} runs · ${activeProgress()}`
+    : 'idle';
+}
+function activeProgress() {
+  const act = B.slots.filter((s) => s.active);
+  if (!act.length) return '';
+  return act.map((s) => `${s.cfg.config_id}#${s.runIdx + 1}/${s.runsTotal} t=${s.fly.elapsed.toFixed(0)}s`).join(' ');
+}
+$('runAllBtn').addEventListener('click', async () => {
+  if (!loadedGraph) { errBox.style.display = 'block'; errBox.textContent = 'graphs not loaded — cannot run neurons.'; return; }
+  if (await freshnessChecked) { errBox.style.display = 'block'; errBox.textContent = 'STALE MODULES — Ctrl+F5 until this clears. ' + STALE_MODULES; return; }
+  queue.groups = GROUPS.filter((g) => !g._off && !g._hidden);
+  if (!queue.groups.length) return;
+  queue.gi = 0;
+  queue.runsEach = Math.max(1, Math.min(200, +$('runsIn').value || 10));
+  queue.seedBase = +$('seedIn').value || dateSeed();
+  try { localStorage.setItem('nsp_batch_runs', String(queue.runsEach)); localStorage.setItem('nsp_batch_seed', String(queue.seedBase)); } catch (e) { /* private mode */ }
+  queue.running = true;
+  document.title = origTitle;
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch (e) {}
+  $('runAllBtn').disabled = true; $('stopBtn').disabled = false;
+  log(`QUEUE START: ${queue.groups.map((g) => g.id).join(' ')} (runs=${queue.runsEach} seed=${queue.seedBase})`);
+  pumpQueue();
+});
+$('stopBtn').addEventListener('click', () => { B.stopReq = true; queue.running = false; queue.aborted = true; $('runAllBtn').disabled = false; $('stopBtn').disabled = true; log('STOPPED by user (current group NOT saved)'); renderQueue(); });
+$('expAllJson').addEventListener('click', () => exportAll('json'));
+$('expAllLog').addEventListener('click', () => exportAll('log'));
+$('expAllCsv').addEventListener('click', () => exportAll('csv'));
+$('clearDb').addEventListener('click', async () => { await dbClear(); log('DB cleared'); renderQueue(); });
+$('runsIn').value = Q.get('runs') || localStorage.getItem('nsp_batch_runs') || 10;
+$('seedIn').value = Q.get('seed') || localStorage.getItem('nsp_batch_seed') || dateSeed();
+if (Q.get('groups')) {
+  const want = Q.get('groups').split(',').map((s) => s.trim());
+  for (const g of GROUPS) g._off = !want.some((w) => w === g.id || g.id === `g${w}` || g.id.startsWith(`g${w}-`));
+}
+
+// ---------- main loop (same stepping as experiment.html, no DOM churn) ----------
+let lastTs = 0, lastUi = 0;
+function loop(ts) {
+  requestAnimationFrame(loop);
+  const frameDt = (ts - lastTs) / 1000 || 0.016;
+  lastTs = ts;
+  if (!B.running) return;
+  for (const sl of B.slots) {
+    if (!sl.active) continue;
+    const tick = consumeSteps(sl.simAcc, frameDt);
+    sl.simAcc = tick.acc;
+    for (let i = 0; i < tick.steps && !sl.fly.done; i++) {
+      const brain = runStep(sl, SIM_STEP_H);
+      if (updateBeeVision(sl)) logRow(sl, sl.curSeed, brain);
+      if (B.stopReq) break;
+    }
+    if (B.stopReq || sl.fly.done) {
+      finishRun(sl, B.stopReq ? 'stopped' : (sl.fly.success ? 'goal' : 'timeout'));
+      sl.runIdx++;
+      if (B.stopReq || sl.runIdx >= sl.runsTotal) sl.active = false;
+      else sl.curSeed = resetRun(sl);
+    }
+  }
+  if (ts - lastUi > 1000) { lastUi = ts; tickProgress(); }
+  if (B.stopReq || !B.slots.some((s) => s.active)) {
+    B.running = false; B.stopReq = false; B.batchDone = true;
+    onGroupDone();
+  }
+}
+window.__batchDbg = {
+  build: BUILD, version: NSP3D_VERSION,
+  get status() { return B.running ? `running ${B.slots.filter((s) => s.active).length} slot(s)` : 'idle'; },
+  get batchDone() { return B.batchDone; },
+  get queue() { return queue.groups.map((g) => g.id); },
+};
+renderQueue();
+requestAnimationFrame(loop);
+if (Q.get('autostart') === '1') $('runAllBtn').click();
+</script>
+</body>
+</html>

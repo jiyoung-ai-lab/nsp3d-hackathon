@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NSP 3D Vision Lab</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+<style>
+  body.lab { display:block; padding:12px; max-width:1180px; margin:0 auto; }
+  .lab header h1 { font-size:20px; margin:4px 0; }
+  .lab .row { display:flex; gap:10px; flex-wrap:wrap; align-items:end; margin:10px 0; }
+  .lab label { display:flex; flex-direction:column; gap:2px; font-size:12px; }
+  .lab input, .lab select, .lab button { font-size:13px; padding:5px 8px; }
+  .lab progress { width:280px; height:16px; }
+  .lab table { border-collapse:collapse; font-size:12px; margin:8px 0; }
+  .lab th, .lab td { border:1px solid #24405e; padding:3px 8px; text-align:right; font-variant-numeric:tabular-nums; }
+  .lab th:first-child, .lab td:first-child { text-align:left; }
+  .lab .cols { display:flex; gap:12px; flex-wrap:wrap; }
+  .lab canvas.view { width:480px; height:270px; background:#05080f; }
+  .lab canvas.chart { width:560px; height:220px; background:#05080f; }
+  .lab .note { font-size:12px; color:#9fb4cc; max-width:900px; }
+  .lab .mono { font-family:ui-monospace,monospace; font-size:12px; }
+</style>
+</head>
+<body class="lab">
+<header><h1 data-i18n="labTitle">Vision Lab — loop baseline multi-camera recorder</h1>
+<p class="note" data-i18n="labSub">루프 미로 A* 정가운데 비행 중 8설정(단안/양안 × 4센서) 카메라 인식 기록 · WebGL+http 필요</p></header>
+<div class="row">
+  <label><span data-i18n="labSeed">seed</span><input id="seed" type="number" value="20261026"></label>
+  <label><span data-i18n="labHeight">cruise height (m)</span><input id="height" type="number" step="0.01" min="0.05" max="0.15" value="0.10"></label>
+  <label><span data-i18n="labSpeed">speed (m/s)</span><input id="speed" type="number" step="0.01" min="0.05" max="0.2" value="0.12"></label>
+  <label><span data-i18n="labLang">언어</span><select id="langSelect"><option value="ko">한국어</option><option value="en">English</option></select></label>
+  <label><span data-i18n="labLight">조명</span><select id="lightSel"><option value="default">default</option><option value="studio">studio</option><option value="neon">neon</option></select></label>
+  <button id="runBtn" data-i18n="labRun">run baseline + record</button>
+  <button id="stopBtn" data-i18n="labStop" disabled>중지</button>
+  <progress id="prog" value="0" max="100"></progress>
+  <span id="status" class="mono">대기</span>
+</div>
+<div class="cols">
+  <div><canvas class="view" id="view" width="480" height="270"></canvas><div class="mono" id="pathInfo">-</div></div>
+  <div>
+    <div class="row">
+      <label><span data-i18n="labConfig">config</span><select id="cfgSel"></select></label>
+      <label><span data-i18n="labSector">sector</span><select id="secSel">
+        <option value="left" data-i18n="vLeft">좌</option><option value="front" data-i18n="vFront">정면</option><option value="right" data-i18n="vRight">우</option>
+        <option value="up" data-i18n="vUp">위</option><option value="down" data-i18n="vDown">아래</option>
+      </select></label>
+      <button id="dlJson">JSONL</button><button id="dlCsv">CSV</button>
+    </div>
+    <canvas class="chart" id="chart" width="560" height="220"></canvas>
+  </div>
+</div>
+<div id="tableWrap"></div>
+<p class="note" data-i18n="labNote">정답 여유공간은 해석적 레이-박스(5방향 대표 레이). z_depth 상/하는 참조 셰이더가 천장/바닥을 의도적으로 필터하므로 정답과 차이가 남. 베이스라인 추종자는 운동학(카메라 독립 참조 궤적용)이며 물리/신경망을 쓰지 않음.</p>
+<p><a href="../index.html" data-i18n="back">back to simulator</a> · <a href="./path-planner.html" data-i18n="pathLab">🧭 A* & 비전 센서 랩</a></p>
+<script type="module">
+import * as THREE from 'three';
+import { WORLD, dateSeed } from '../src/config.js';
+import { LOOP_RING_MAZE } from '../src/sim/maze-layouts.js';
+import { buildStaticScene, buildObstacleMesh, clearWorld, makeWorld, EyeRig } from '../src/sim/sim-core.js';
+import { createCameraVisionDecoder } from '../src/vision/camera-vision.js';
+import { buildVoxelGrid, astar, smoothPath, pathLength, groundTruthClearance } from '../src/lab/astar.js';
+import { initLang, setLang, t } from '../src/ui/i18n.js';
+
+const $ = (id) => document.getElementById(id);
+let labStatus = { key: 'labStIdle', args: [] };
+function setLabStatus(key, ...args) {
+  labStatus = { key, args };
+  const v = t(key);
+  $('status').textContent = typeof v === 'function' ? v(...args) : v;
+}
+function renderPathInfo() {
+  $('pathInfo').textContent = lab.pathInfo ? t('labPathFmt')(lab.pathInfo[0], lab.pathInfo[1]) : '-';
+}
+initLang($('langSelect'));
+setLabStatus('labStIdle');
+$('langSelect').addEventListener('change', (e) => {
+  setLang(e.target.value);
+  setLabStatus(labStatus.key, ...labStatus.args);
+  renderPathInfo();
+  if (lab.summary.length) renderTable();
+  if (lab.rows.length) drawChart();
+});
+
+const SENSORS = ['fog_rgb', 'z_depth', 'optical_flow', 'sensor_fusion'];
+const EYES = ['monocular', 'binocular'];
+const CONFIGS = EYES.flatMap((eye) => SENSORS.map((sensor) => ({ eye, sensor, key: `${eye[0]}:${sensor}` })));
+const SECTORS = ['left', 'front', 'right', 'up', 'down'];
+
+// Scene: observer view + eye rig share one static scene; a marker stands in for the agent.
+// Observer camera follows the index.html 3P Overview standard (orbit th/ph/r + FOV 55).
+const VIEW_W = 480, VIEW_H = 270;
+const MARGIN = WORLD.beeRadius + 0.001;
+const clampY = (y) => Math.min(WORLD.Y - MARGIN, Math.max(MARGIN, y));
+const renderer = new THREE.WebGLRenderer({ canvas: $('view'), antialias: false });
+renderer.setPixelRatio(1);
+renderer.toneMapping = THREE.NoToneMapping;
+const H = buildStaticScene();
+H.scene.background = new THREE.Color(0x060914); // index.html app.js와 동일 (setLighting setHex 대상)
+H.observerCamera.aspect = VIEW_W / VIEW_H;
+H.observerCamera.updateProjectionMatrix();
+const orbit = { th: 0.8, ph: 1.05, r: 1.35 };
+function orbitUpdate() {
+  H.observerCamera.position.set(
+    orbit.r * Math.sin(orbit.ph) * Math.sin(orbit.th),
+    0.1 + orbit.r * Math.cos(orbit.ph),
+    orbit.r * Math.sin(orbit.ph) * Math.cos(orbit.th)
+  );
+  H.observerCamera.lookAt(0, 0.08, 0);
+}
+orbitUpdate();
+function renderObserver() {
+  // EyeRig.captureFrames leaves the viewport at fullscreen size; restore lab canvas size.
+  renderer.setViewport(0, 0, VIEW_W, VIEW_H);
+  renderer.render(H.scene, H.observerCamera);
+}
+{
+  const cv = $('view');
+  cv.style.cursor = 'grab';
+  let drag = null;
+  cv.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    orbit.th -= (e.clientX - drag.x) * 0.006;
+    orbit.ph = Math.min(1.5, Math.max(0.15, orbit.ph - (e.clientY - drag.y) * 0.006));
+    drag = { x: e.clientX, y: e.clientY };
+    if (!lab.running) renderObserver();
+  });
+  cv.addEventListener('pointerup', () => { drag = null; });
+  cv.addEventListener('pointercancel', () => { drag = null; });
+  cv.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    orbit.r = Math.min(3, Math.max(0.5, orbit.r * (1 + e.deltaY * 0.001)));
+    if (!lab.running) renderObserver();
+  }, { passive: false });
+}
+function setLighting(preset = 'default') {
+  const hemi = H.hemiLight, sun = H.sunLight, rim = H.rimLight;
+  if (!hemi || !sun) return;
+  if (preset === 'studio') {
+    H.scene.background.setHex(0x0b1628);
+    hemi.color.setHex(0xf0f9ff); hemi.groundColor.setHex(0x334155); hemi.intensity = 2.15;
+    sun.color.setHex(0xffe1aa); sun.intensity = 1.65;
+    if (rim) { rim.color.setHex(0x7dd3fc); rim.intensity = 1.35; }
+    if (H.floorMesh) H.floorMesh.material.color.setHex(0x16263b);
+  } else if (preset === 'neon') {
+    H.scene.background.setHex(0x03060e);
+    hemi.color.setHex(0x38bdf8); hemi.groundColor.setHex(0x1e1b4b); hemi.intensity = 1.05;
+    sun.color.setHex(0xc084fc); sun.intensity = 1.45;
+    if (rim) { rim.color.setHex(0x22d3ee); rim.intensity = 1.75; }
+    if (H.floorMesh) H.floorMesh.material.color.setHex(0x09111e);
+  } else {
+    H.scene.background.setHex(0x060914);
+    hemi.color.setHex(0xc6efff); hemi.groundColor.setHex(0x1a2835); hemi.intensity = 1.5;
+    sun.color.setHex(0xffe1aa); sun.intensity = 1.65;
+    if (rim) { rim.color.setHex(0x38bdf8); rim.intensity = 0.45; }
+    if (H.floorMesh) H.floorMesh.material.color.setHex(0x101c2a);
+  }
+}
+setLighting('default');
+$('lightSel').addEventListener('change', (e) => { setLighting(e.target.value); if (!lab.running) renderObserver(); });
+const marker = new THREE.Mesh(new THREE.SphereGeometry(0.008, 12, 10), new THREE.MeshBasicMaterial({ color: 0xffd23f }));
+marker.layers.set(2); // observer-only: never leaks into the eye rig (index.html standard)
+H.scene.add(marker);
+const rig = new EyeRig(renderer, H, marker, H.goalGroup);
+let obstacles = [], pathLine = null;
+const lab = { rows: [], summary: [], path: [], running: false, cancelled: false };
+globalThis.__nspLab = lab;
+
+function setWorld(seed) {
+  clearWorld(H.scene, obstacles);
+  const w = makeWorld(seed, 'loop_ring');
+  obstacles = w.obstacles;
+  for (const o of obstacles) { o.mesh = buildObstacleMesh(o); H.scene.add(o.mesh); }
+  H.goalGroup.position.set(w.goal.x, 0.02, w.goal.z);
+  return w;
+}
+
+function showPath(path) {
+  if (pathLine) { H.scene.remove(pathLine); pathLine.geometry.dispose(); }
+  const g = new THREE.BufferGeometry().setFromPoints(path.map((p) => new THREE.Vector3(p.x, p.y, p.z)));
+  pathLine = new THREE.Line(g, new THREE.LineBasicMaterial({ color: 0x2fe36b }));
+  pathLine.layers.set(2);
+  H.scene.add(pathLine);
+}
+
+function planLoop(height) {
+  const grid = buildVoxelGrid(obstacles, { cell: 0.02, margin: 0.012 });
+  const pts = [[LOOP_RING_MAZE.start.x, LOOP_RING_MAZE.start.z], ...LOOP_RING_MAZE.loopWaypoints]
+    .map(([x, z]) => ({ x, y: height, z }));
+  const full = [], segEnds = [];
+  let acc = 0;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const seg = astar(grid, pts[i], pts[i + 1]);
+    if (!seg) return { errorSeg: i };
+    const sm = smoothPath(grid, seg);
+    acc += pathLength(sm);
+    segEnds.push(+acc.toFixed(4));
+    full.push(...(i ? sm.slice(1) : sm));
+  }
+  // Clamp to the flight envelope so smoothing can never pin the marker to the ceiling/floor.
+  for (const p of full) p.y = clampY(p.y);
+  return { path: full, length: pathLength(full), segEnds, waypoints: pts };
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function run() {
+  if (lab.running) return;
+  lab.running = true;
+  lab.cancelled = false;
+  lab.rows = []; lab.summary = [];
+  $('runBtn').disabled = true;
+  $('stopBtn').disabled = false;
+  try {
+    const seed = +$('seed').value || 1;
+    const height = Math.min(0.15, Math.max(0.05, +$('height').value || 0.1));
+    const speed = Math.min(0.2, Math.max(0.05, +$('speed').value || 0.12));
+    const dt = 0.05, STRIDE = 3; // record every 3rd tick (1.8cm spacing): same stats, 3x faster
+    setLabStatus('labStPlanning');
+    setWorld(seed);
+    const plan = planLoop(height);
+    if (plan.errorSeg != null) { setLabStatus('labStUnreachFmt', plan.errorSeg); return; }
+    lab.path = plan.path;
+    lab.header = {
+      type: 'header', maze: 'loop_ring', seed, cruiseHeight: height, speed,
+      pathLength: +plan.length.toFixed(4), waypoints: plan.waypoints, segEnds: plan.segEnds,
+      voxel: { cell: 0.02, margin: 0.012 }, dt, stride: STRIDE,
+      configs: CONFIGS.map((c) => c.key),
+      sec: 's0..s7 far-left..far-right lateral threats',
+    };
+    showPath(plan.path);
+    lab.pathInfo = [plan.path.length, plan.length.toFixed(3)];
+    renderPathInfo();
+    // Arc-length table for constant-speed pursuit.
+    const cum = [0];
+    for (let i = 1; i < plan.path.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(
+        plan.path[i].x - plan.path[i - 1].x, plan.path[i].y - plan.path[i - 1].y, plan.path[i].z - plan.path[i - 1].z));
+    }
+    const total = cum[cum.length - 1];
+    const at = (s) => {
+      s = Math.min(Math.max(s, 0), total);
+      let i = 1;
+      while (i < cum.length - 1 && cum[i] < s) i++;
+      const t = (s - cum[i - 1]) / Math.max(1e-9, cum[i] - cum[i - 1]);
+      const a = plan.path[i - 1], b = plan.path[i];
+      return { pos: { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, z: a.z + (b.z - a.z) * t }, dir: { x: b.x - a.x, y: b.y - a.y, z: b.z - a.z } };
+    };
+    const decoders = Object.fromEntries(CONFIGS.map((c) => [c.key, createCameraVisionDecoder()]));
+    const steps = Math.ceil(total / (speed * dt * STRIDE));
+    for (let k = 0; k <= steps; k++) {
+      const s = (k * total) / steps;
+      let seg = plan.segEnds.findIndex((e) => s <= e + 1e-9);
+      if (seg < 0) seg = plan.segEnds.length - 1;
+      const { pos, dir } = at(s);
+      pos.y = clampY(pos.y);
+      const yaw = Math.atan2(dir.x, -dir.z);
+      const pitch = Math.atan2(dir.y, Math.hypot(dir.x, dir.z));
+      marker.position.set(pos.x, pos.y, pos.z);
+      // One render per eye mode; decode each eye's configs immediately, before
+      // the next capture overwrites the rig's shared buffers (no per-tick
+      // full-frame copies; decoded bytes and per-decoder order unchanged).
+      const cfg = {};
+      const storeCfg = (c, sig) => {
+        cfg[c.key] = {
+          L: +sig.leftThreat.toFixed(3), C: +sig.frontThreat.toFixed(3), R: +sig.rightThreat.toFixed(3),
+          U: +sig.upThreat.toFixed(3), D: +sig.downThreat.toFixed(3),
+          g1: +sig.grid[1].toFixed(3), g4: +sig.grid[4].toFixed(3), g7: +sig.grid[7].toFixed(3),
+          gv: +sig.goalVisible.toFixed(3), wall: sig.wallPixels, color: sig.colorPixels, goal: sig.goalPixels,
+          sec: sig.sectors.map((v) => +v.toFixed(3)),
+        };
+      };
+      const decodeEye = (cap, eye) => {
+        for (const c of CONFIGS) {
+          if (c.eye !== eye) continue;
+          const sig = c.sensor === 'fog_rgb'
+            ? decoders[c.key].decode(cap.image.data, cap.image.width, cap.image.height, c.eye)
+            : decoders[c.key].decode(cap.image.data, cap.image.width, cap.image.height, c.eye, { sensorType: c.sensor, depthPixels: cap.depth });
+          storeCfg(c, sig);
+        }
+      };
+      decodeEye(rig.captureFrames({ pos, yaw, pitch }, 'monocular', true), 'monocular');
+      decodeEye(rig.captureFrames({ pos, yaw, pitch }, 'binocular', true), 'binocular');
+      const gt = groundTruthClearance(obstacles, pos, yaw, pitch);
+      const gtWalls = groundTruthClearance(obstacles, pos, yaw, pitch, 0.6, true);
+      const row = { t: +(k * dt * STRIDE).toFixed(2), s: +s.toFixed(4), seg, x: +pos.x.toFixed(4), y: +pos.y.toFixed(4), z: +pos.z.toFixed(4), yaw: +yaw.toFixed(3), gt, gtWalls, cfg };
+      lab.rows.push(row);
+      $('prog').value = Math.round((100 * k) / steps);
+      setLabStatus('labStRecFmt', k, steps);
+      // Chunked UI: render + yield every 8 ticks so the page never looks frozen.
+      if (k % 8 === 0) {
+        orbitUpdate();
+        if (!document.hidden) renderObserver();
+        await sleep(0);
+        if (lab.cancelled) { setLabStatus('labStCancelFmt', lab.rows.length); return; }
+      }
+    }
+    orbitUpdate();
+    renderObserver();
+    analyze();
+    setLabStatus('labStDoneFmt', lab.rows.length);
+  } finally {
+    lab.running = false;
+    $('runBtn').disabled = false;
+    $('stopBtn').disabled = true;
+    $('prog').value = 100;
+  }
+}
+
+function analyze() {
+  const N = lab.rows.length;
+  lab.summary = CONFIGS.map((c) => {
+    const vals = { L: [], C: [], R: [], U: [], D: [] };
+    const gtKeys = { L: 'left', C: 'front', R: 'right', U: 'up', D: 'down' };
+    let se = { L: 0, C: 0, R: 0, U: 0, D: 0 }, lock = 0;
+    for (const r of lab.rows) {
+      const v = r.cfg[c.key];
+      for (const k of Object.keys(vals)) {
+        vals[k].push(v[k]);
+        const prox = 1 - Math.min(0.6, r.gt[gtKeys[k]]) / 0.6;
+        se[k] += (v[k] - prox) ** 2;
+      }
+      if (v.gv > 0.05) lock++;
+    }
+    const mean = (a) => a.reduce((x, y) => x + y, 0) / Math.max(1, a.length);
+    const std = (a) => { const m = mean(a); return Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / Math.max(1, a.length)); };
+    const row = { cfg: c.key, n: N, lock: +(lock / Math.max(1, N)).toFixed(3) };
+    for (const k of Object.keys(vals)) {
+      row[k] = +mean(vals[k]).toFixed(3);
+      row[k + 'sd'] = +std(vals[k]).toFixed(3);
+      row[k + 'rmse'] = +Math.sqrt(se[k] / Math.max(1, N)).toFixed(3);
+    }
+    return row;
+  });
+  renderTable();
+  fillCfgSel();
+  drawChart();
+}
+
+function renderTable() {
+  const cols = ['cfg', 'n', 'lock', 'L', 'Lrmse', 'C', 'Crmse', 'R', 'Rrmse', 'U', 'Urmse', 'D', 'Drmse'];
+  $('tableWrap').innerHTML = `<table><thead><tr>${cols.map((c) => `<th>${c}</th>`).join('')}</tr></thead><tbody>${
+    lab.summary.map((r) => `<tr>${cols.map((c) => `<td>${r[c]}</td>`).join('')}</tr>`).join('')
+  }</tbody></table>`;
+}
+
+function fillCfgSel() {
+  const sel = $('cfgSel');
+  sel.innerHTML = '';
+  for (const c of CONFIGS) {
+    const op = document.createElement('option');
+    op.value = c.key; op.textContent = `${c.eye} ${c.sensor}`;
+    sel.appendChild(op);
+  }
+}
+fillCfgSel();
+
+function drawChart() {
+  const ctx = $('chart').getContext('2d');
+  const Wpx = 560, Hpx = 220;
+  ctx.fillStyle = '#05080f'; ctx.fillRect(0, 0, Wpx, Hpx);
+  if (!lab.rows.length) return;
+  const key = $('cfgSel').value || CONFIGS[0].key;
+  const sec = $('secSel').value;
+  const map = { left: 'L', front: 'C', right: 'R', up: 'U', down: 'D' };
+  const k = map[sec];
+  ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5; ctx.beginPath();
+  lab.rows.forEach((r, i) => {
+    const x = (i / Math.max(1, lab.rows.length - 1)) * Wpx;
+    const y = Hpx - 6 - r.cfg[key][k] * (Hpx - 12);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  ctx.strokeStyle = '#f5b942'; ctx.lineWidth = 1; ctx.setLineDash([4, 3]); ctx.beginPath();
+  lab.rows.forEach((r, i) => {
+    const x = (i / Math.max(1, lab.rows.length - 1)) * Wpx;
+    const prox = 1 - Math.min(0.6, r.gt[sec]) / 0.6;
+    const y = Hpx - 6 - prox * (Hpx - 12);
+    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+  });
+  ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = '#9fb4cc'; ctx.font = '11px system-ui';
+  ctx.fillText(`${key} ${sec}: ${t('labChartLegend')}`, 8, 14);
+}
+$('cfgSel').addEventListener('change', drawChart);
+$('secSel').addEventListener('change', drawChart);
+
+function download(name, text, type = 'application/json') {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+$('dlJson').addEventListener('click', () => {
+  const lines = [JSON.stringify(lab.header), ...lab.rows.map((r) => JSON.stringify({ type: 'tick', ...r }))];
+  download(`vision_lab_${$('seed').value}.jsonl`, lines.join('\n'));
+});
+$('dlCsv').addEventListener('click', () => {
+  const cols = Object.keys(lab.summary[0] || { cfg: 0 });
+  download(`vision_lab_${$('seed').value}_summary.csv`,
+    cols.join(',') + '\n' + lab.summary.map((r) => cols.map((c) => r[c]).join(',')).join('\n'), 'text/csv');
+});
+$('runBtn').addEventListener('click', run);
+$('stopBtn').addEventListener('click', () => { lab.cancelled = true; });
+// Show the loop-ring world immediately (index.html standard view) before the first run.
+$('seed').value = dateSeed();
+setWorld(+$('seed').value || 1);
+marker.position.set(LOOP_RING_MAZE.start.x, 0.1, LOOP_RING_MAZE.start.z);
+orbitUpdate();
+renderObserver();
+</script>
+</body>
+</html>

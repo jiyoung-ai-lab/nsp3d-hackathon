@@ -1,0 +1,14 @@
+{
+  "_meta": {
+    "schema": "nsp3d-experiment-mazes/1.0",
+    "note": "Shell IDs for the experiment harness. Each shell maps to a builtin layout today; replace the mapping with custom reference geometry later. No wall geometry is defined here yet."
+  },
+  "mazes": [
+    { "id": "exp_empty", "label": "empty (shell)", "builtin": "open_arena" },
+    { "id": "exp_corridor", "label": "corridor (shell)", "builtin": "corridor" },
+    { "id": "exp_simple", "label": "test simple (shell, 1 placeholder box later)", "builtin": "corridor" },
+    { "id": "exp_maze2", "label": "sample maze2", "builtin": "s_maze" },
+    { "id": "exp_maze6", "label": "sample maze6", "builtin": "zigzag_labyrinth" },
+    { "id": "exp_multi", "label": "user maze6", "builtin": "multi_level_3d" }
+  ]
+}

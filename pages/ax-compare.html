@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>AX 전후 비교 — 이전 vs 새로운</title>
+<style>
+:root{
+  color-scheme:dark;
+  --bg:#07111f;--panel:#101d31;--panel2:#14243b;--line:#263a58;
+  --txt:#e8f1ff;--mut:#9bb0cb;--cyan:#38bdf8;--green:#34d399;
+  --red:#fb7185;--amber:#fbbf24;--violet:#a78bfa;--blue:#60a5fa;
+}
+*{box-sizing:border-box}
+body{margin:0;padding:36px 48px 48px;background:
+ radial-gradient(ellipse at 12% 0%,rgba(56,189,248,.10),transparent 34%),
+ radial-gradient(ellipse at 92% 12%,rgba(167,139,250,.09),transparent 30%),var(--bg);
+ color:var(--txt);font-family:Inter,"Malgun Gothic",system-ui,sans-serif}
+.wrap{max-width:1736px;margin:0}
+header{padding:8px 2px 18px;border-bottom:1px solid var(--line);margin-bottom:18px}
+h1{font-size:28px;letter-spacing:-.5px;margin:0;color:#f8fbff;font-weight:800}
+h1 .sub{display:inline-block;font-size:13px;color:var(--mut);font-weight:500;margin:7px 0 0 10px;letter-spacing:0}
+.meta{font-size:13px;color:var(--mut);margin-top:9px}.purpose{font-size:13px;color:var(--mut);margin-top:6px;line-height:1.6}
+.meta:before{content:"●";color:var(--green);margin-right:7px}
+.tabs{display:flex;gap:8px;margin:18px 0 20px;flex-wrap:wrap}
+.tab{background:#0e1b2e;border:1px solid var(--line);color:var(--mut);border-radius:999px;padding:10px 18px;cursor:pointer;font-size:14px;font-weight:650;transition:.18s}
+.tab:hover{border-color:#527092;color:var(--txt);transform:translateY(-1px)}
+.tab.sel{border-color:var(--cyan);background:linear-gradient(120deg,rgba(14,165,233,.23),rgba(59,130,246,.12));color:#f4fbff;box-shadow:0 0 0 2px rgba(56,189,248,.08)}
+.tab:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.tab:disabled:hover{border-color:var(--line);color:var(--mut)}
+.card{background:linear-gradient(145deg,rgba(17,31,51,.98),rgba(12,24,42,.98));border:1px solid var(--line);border-radius:15px;padding:19px 20px;margin-bottom:16px;box-shadow:0 12px 30px rgba(0,0,0,.14)}
+.card h2{font-size:16px;margin:0 0 15px;color:#f1f6ff;font-weight:750;letter-spacing:-.1px}
+.card h2 .hint{font-size:12px;color:var(--mut);font-weight:450;margin-left:8px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:20px}
+.kpi>span{display:block;padding:13px 14px;border-radius:11px;background:rgba(5,14,27,.56);border:1px solid rgba(65,91,126,.35);font-size:12px;color:var(--mut);min-width:0}
+.kpi b{display:block;color:#fff;font-size:23px;line-height:1.2;margin-top:6px;font-weight:800;letter-spacing:-.5px;overflow-wrap:anywhere}
+.kpi span:nth-child(1) b{color:var(--green)}
+.kpi>span:nth-child(4) b,.kpi>span:nth-child(5) b{font-size:18px}
+canvas{width:100%;display:block;background:rgba(4,11,22,.55);border:1px solid rgba(48,69,99,.35);border-radius:10px}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:13px;overflow:hidden;border:1px solid var(--line);border-radius:10px}
+td,th{padding:10px 11px;border-bottom:1px solid rgba(48,69,99,.55);text-align:right;white-space:nowrap}
+th{background:#14243a;color:#a9bdd8;font-weight:650;font-size:12px}
+td{background:rgba(6,15,28,.36);color:#dce8f8}
+tr:last-child td{border-bottom:0}
+td.l,th.l{text-align:left}
+.heat td.c{text-align:center;font-weight:800;color:#08111e;border-right:1px solid rgba(5,12,23,.45)}
+.ok{color:var(--green)!important}.bad{color:var(--red)!important}.warn{color:var(--amber)!important}.dim{color:#6d829e!important}
+button.act,a.act{float:right;background:#132943;color:var(--txt);border:1px solid #3c709b;border-radius:8px;padding:8px 13px;cursor:pointer;font-size:13px;font-weight:700;margin-left:8px}h1 .act{float:none;margin:0 0 0 10px;vertical-align:middle}a.act{display:inline-block;text-decoration:none}a.act svg{display:block}
+button.act:hover{background:#1a385a}
+.legend{display:flex;gap:13px;flex-wrap:wrap;color:var(--mut);font-size:13px;margin:-4px 0 12px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:middle}
+.section-head{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+.pill{font-size:11px;color:#b9cce5;background:#1a2d48;border:1px solid #304967;border-radius:999px;padding:5px 9px}
+.foot{color:#7186a3;font-size:13px;line-height:1.6;margin-top:20px;padding:12px 3px;border-top:1px solid var(--line)}
+@media(max-width:900px){body{padding:16px 12px 32px}.grid2{grid-template-columns:1fr}h1{font-size:21px}.card{padding:15px 13px}td,th{padding:8px 7px;font-size:10px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><h1>AX 전후 비교 <a id="homeLink" class="act" href="../index.html" title="메인으로 · Home" aria-label="메인으로 · Home"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg></a><button class="act" id="langBtn">EN</button> <span class="sub" id="dssub"></span></h1>
+<div class="meta" id="scope">실험 데이터 연결 확인 중…</div><div class="purpose" id="purpose"></div></header>
+<div class="tabs" id="dstabs"></div>
+<div class="tabs" id="tabs"></div>
+<div id="body"></div>
+<div class="foot" id="dsfoot"></div>
+</div>
+<script type="module">
+import { MAZES } from '../src/sim/maze-layouts.js';
+
+const BASE = '../experiments/';
+const DS = {
+  old: { ko: '전', en: 'Before', cfg: 'configs.json', runs: ['ax_cor0_runs.jsonl', 'ax_multi1_runs.jsonl', 'ax_zig0_runs.jsonl'], sub: '야간 탐색 · cor0/multi1/zig0 · trial별 파라미터', subEn: 'Night sweep · cor0/multi1/zig0 · per-trial params', foot: 'NSP 3D · 이전 · experiments/ax_{cor0,multi1,zig0}_runs.jsonl + configs.json', footEn: 'NSP 3D · before · experiments/ax_{cor0,multi1,zig0}_runs.jsonl + configs.json', alias: { cor0: 'm2', multi1: 'm6', zig0: 'm7' } },
+  cur: { ko: '후', en: 'After', cfg: 'configs_main.json', runs: ['ax_main_desk_runs.jsonl'], sub: '본테스트 fu13 · LIF/ALIF × 단안/양안 × 센서 조건', subEn: 'Main fu13 · LIF/ALIF × mono/bi × sensors', foot: 'NSP 3D · 새로운 · experiments/ax_main_desk_runs.jsonl + configs_main.json', footEn: 'NSP 3D · after · experiments/ax_main_desk_runs.jsonl + configs_main.json', alias: {} },
+};
+const TABS = [
+  { id: 'all', ko: '전체', en: 'All' },
+  { id: 'm2', ko: '미로2 복도', en: 'M2 Corridor', layout: 'corridor' },
+  { id: 'm4', ko: '미로4 기둥', en: 'M4 Pillars', layout: 'pillars' },
+  { id: 'm5', ko: '미로5 복합', en: 'M5 Complex', layout: 'complex' },
+  { id: 'm6', ko: '미로6 다층', en: 'M6 Multi', layout: 'multi_level_3d' },
+  { id: 'm7', ko: '미로7 지그재그', en: 'M7 Zigzag', layout: 'zigzag_labyrinth' },
+  { id: 'm8', ko: '미로8 격자', en: 'M8 Grid', layout: 'grid_matrix' },
+  { id: 'm9', ko: '미로9 나선', en: 'M9 Spiral', layout: 'spiral_ascent' },
+  { id: 'm10', ko: '미로10 익스트림', en: 'M10 Extreme', layout: 'extreme_championship' },
+  { id: 'm11', ko: '미로11 루프', en: 'M11 Loop', layout: null },
+];
+const MAZE_BY_ID = Object.fromEntries(MAZES.map((m) => [m.id, m]));
+const SEN_KO = { fog_rgb: 'Fog', z_depth: 'Depth', optical_flow: 'Flow', sensor_fusion: 'Fusion' };
+const EYE_KO = { monocular: '단안', binocular: '양안' };
+const MOD_KO = { lif_baseline: 'LIF', alif_surrogate: 'ALIF' };
+const CTRL_W = { '카메라': 0, '뉴런': 1 }, MOD_W = { '-': 0, LIF: 1, ALIF: 2 }, EYE_W = { '단안': 0, '양안': 1 }, SEN_W = { Fog: 0, Depth: 1, Flow: 2, Fusion: 3 };
+let LANG = 'ko';
+try {
+  const ql = new URLSearchParams(location.search).get('lang');
+  const sl = localStorage.getItem('axcmp_lang') || localStorage.getItem('nsp_lang');
+  LANG = ql === 'en' || ql === 'ko' ? ql : (sl === 'en' ? 'en' : 'ko');
+} catch (e) { /* ignore */ }
+const STR = {
+  ko: { title: 'AX 전후 비교 — 이전 vs 새로운', h1: 'AX 전후 비교', refresh: '새로고침', allKpi: '전체 KPI', mazePerf: '미로별 성능 비교', byCond: '조건별 성공률', heat: '미로 × 조건 히트맵', gain: 'LIF → ALIF 향상', timeDist: '도착시간 분포', collDist: '충돌 분포', summary: '요약', kRate: '전체 성공률', kAvgColl: '평균 충돌', kAvgTime: '평균 시간', kBest: '최적 셀', kRateS: '성공률', kBestCond: '최적 조건', kBestScore: '최적 성적', hintSort: '전체 조건 합산 · 성공률 순 정렬', hintCond: 'LIF/ALIF × 단안/양안 × Fog/Fusion', pillSensor: '색상 = 센서 조건', hintCell: '셀 = 성공률', hintEB: '단안/양안 × Fog/Fusion', thMaze: '미로', thCond: '조건', mapTitle: '기하맵: 최종위치', mapHintL: '벽/시작/골 표시', mapHintN: '레이아웃 없음·위치만', h2h: 'LIF vs ALIF 직접 비교', h2hHint: '막대 2개 = 동일 조건의 성공률', numCmp: 'LIF → ALIF 수치 비교', cvGrp: '조건별 성공률 · 막대 길이 = 성공률', cvRank: '미로별 전체 성공률 비교 · 모든 조건 합산', cvLifAlif: '동일 조건에서 LIF와 ALIF 성공률 비교', cvOk: '성공', cvFail: '실패', cvMap: '주황 시작 · 초록 골 · 점=최종위치(초록 성공)', none: '없음', errT: '실험 데이터를 불러오지 못했습니다', errB: '프로젝트 루트 기준 경로에서 실행해야 합니다. HTML 파일을 직접 열지 말고 개발 서버를 통해 report 경로로 접속하세요.<br>필요 파일: ', mazeEmptyT: '이 미로의 데이터가 없습니다', mazeEmptyB: '실험 로그의 trial 이름과 미로 탭 ID가 일치하는지 확인하세요.', cells: '셀 로드', purpose: '단위테스트 튜닝 뒤 배치로 조건별 편차를 재서 코드 오류를 검증·최적화 (학습 OFF). 이전=노트북 첫 시도·소규모, 이후=PC fu13 본테스트.' },
+  en: { title: 'AX Before / After — night vs main', h1: 'AX Before / After', refresh: 'Refresh', allKpi: 'Overall KPI', mazePerf: 'Per-maze performance', byCond: 'By-condition rates', heat: 'Maze × condition heatmap', gain: 'LIF → ALIF gain', timeDist: 'Time distribution', collDist: 'Collision distribution', summary: 'Summary', kRate: 'Success rate', kAvgColl: 'Avg collisions', kAvgTime: 'Avg time', kBest: 'Best cell', kRateS: 'Rate', kBestCond: 'Best cond', kBestScore: 'Best score', hintSort: 'all conditions · sorted by rate', hintCond: 'LIF/ALIF × mono/bi × Fog/Fusion', pillSensor: 'color = sensor', hintCell: 'cell = rate', hintEB: 'mono/bi × Fog/Fusion', thMaze: 'Maze', thCond: 'Condition', mapTitle: 'Map: final positions', mapHintL: 'walls/start/goal', mapHintN: 'no layout · dots only', h2h: 'LIF vs ALIF head-to-head', h2hHint: '2 bars = same-condition rate', numCmp: 'LIF → ALIF table', cvGrp: 'By-condition rate · bar = rate', cvRank: 'Per-maze overall rate · all conditions', cvLifAlif: 'LIF vs ALIF, same condition', cvOk: 'ok', cvFail: 'fail', cvMap: 'orange start · green goal · dot=final (green ok)', none: 'none', errT: 'Could not load experiment data', errB: 'Serve from project root over http, not file://.<br>Needs: ', mazeEmptyT: 'No data for this maze', mazeEmptyB: 'Check trial names vs maze tab IDs.', cells: ' cells', purpose: 'After unit-test tuning, batches measure per-condition variance to verify code (learning OFF). Before=first small notebook run, after=PC fu13 main test.' },
+};
+const t = (k) => (STR[LANG] && STR[LANG][k]) || STR.ko[k] || k;
+const TOK_EN = { '카메라': 'Camera', '뉴런': 'Neuron', '단안': 'Mono', '양안': 'Bi' };
+const tok = (s) => LANG === 'ko' ? s : (TOK_EN[s] || s);
+const tokKey = (k) => k.split('·').map(tok).join('·');
+function applyStatic() {
+  document.title = t('title');
+  document.querySelector('header h1').childNodes[0].textContent = t('h1') + ' ';
+  document.getElementById('langBtn').textContent = LANG === 'ko' ? 'EN' : 'KO';
+  document.getElementById('purpose').textContent = t('purpose');
+}
+
+let CFG = {};
+let MAIN = [];
+async function fetchText(p) {
+  try {
+    const r = await fetch(p + '?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return null;
+    return await r.text();
+  } catch (e) { return null; }
+}
+function parseJsonl(txt) {
+  if (!txt) return [];
+  const out = [];
+  for (const line of txt.split('\n')) {
+    const s = line.trim();
+    if (!s) continue;
+    try { out.push(JSON.parse(s)); } catch (e) { /* tail partial line */ }
+  }
+  return out;
+}
+function decodeCfg(cfgId) {
+  const c = CFG[cfgId] || {};
+  const ctl = /RULE/.test(c.label || '') ? '카메라' : '뉴런';
+  return {
+    ctl, model: ctl === '카메라' ? '-' : (MOD_KO[c.neuronModel] || '?'),
+    eye: EYE_KO[c.visionMode] || '?', sen: SEN_KO[c.sensor] || '?',
+    label: c.label || cfgId,
+  };
+}
+function grpKey(d) { return `${d.ctl}·${d.model}·${d.eye}·${d.sen}`; }
+function grpW(d) { return CTRL_W[d.ctl] * 1000 + MOD_W[d.model] * 100 + EYE_W[d.eye] * 10 + SEN_W[d.sen]; }
+function aggRows(rows) {
+  const n = rows.length;
+  if (!n) return null;
+  const s = rows.filter((r) => r.success).length;
+  const avg = (f) => rows.reduce((a, r) => a + (f(r) || 0), 0) / n;
+  return { n, rate: s / n, coll: avg((r) => r.collisions), time: avg((r) => r.elapsed_s), dist: avg((r) => r.path_m) };
+}
+function trialize(recs, ds) {
+  const A = DS[ds].alias;
+  return recs.filter((r) => r.ok !== false && r.rows && r.rows.length).map((r) => {
+    const raw = (r.trial ?? '').toString().split('-')[0];
+    return {
+      cfg: r.params.config, sens: r.params.sens, cruise: r.params.cruise, seed: r.seed,
+      trial: r.trial, tag: (r.study && A[r.study]) || A[raw] || raw,
+      agg: aggRows(r.rows), rows: r.rows,
+    };
+  });
+}
+function mazeTag(t) { return t.tag; }
+async function loadAll(ds) {
+  const cfgTxt = await fetchText(BASE + DS[ds].cfg);
+  CFG = {};
+  if (cfgTxt) for (const c of JSON.parse(cfgTxt).configs) CFG[c.config_id] = c;
+  MAIN = [];
+  for (const f of DS[ds].runs) MAIN.push(...trialize(parseJsonl(await fetchText(BASE + f)), ds));
+}
+
+// ---------- canvas helpers ----------
+const FONT = '13px Consolas, monospace';
+function ctx2d(id, h) {
+  const cv = document.getElementById(id);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = cv.clientWidth || 600;
+  cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
+  cv.style.height = h + 'px';
+  const g = cv.getContext('2d');
+  g.scale(dpr, dpr); g.font = FONT;
+  return { g, w, h };
+}
+function rateColor(r) {
+  const t = Math.max(0, Math.min(1, r));
+  return `rgb(${Math.round(248 - t * 174)},${Math.round(113 + t * 109)},${Math.round(113 + t * 15)})`;
+}
+function bestTrial(trials) {
+  return [...trials].sort((a, b) => (b.agg.rate - a.agg.rate) || (a.agg.coll - b.agg.coll) || (a.agg.time - b.agg.time))[0];
+}
+
+function sensorColor(s) {
+  return ({Fog:'#38bdf8',Depth:'#60a5fa',Flow:'#f59e0b',Fusion:'#a78bfa'})[s] || '#94a3b8';
+}
+function drawGroupBars(id, trials) {
+  const m = new Map();
+  for (const t of trials) {
+    const d = decodeCfg(t.cfg), k = grpKey(d);
+    if (!m.has(k)) m.set(k, { d, rows: [] });
+    m.get(k).rows.push(...t.rows);
+  }
+  const gs = [...m.values()].map((g) => ({ ...g, agg: aggRows(g.rows) }))
+    .sort((a,b) => grpW(a.d)-grpW(b.d));
+  const rowH=34, top=34, bottom=18, height=Math.max(110,top+gs.length*rowH+bottom);
+  const {g,w}=ctx2d(id,height);
+  g.fillStyle='#9bb0cb';g.font='13px Inter, sans-serif';
+  g.fillText(t('cvGrp'),12,19);
+  const labelW=Math.min(220,Math.max(150,w*.31)), rightW=145;
+  const x0=labelW, bw=Math.max(50,w-labelW-rightW-18);
+  gs.forEach((s,i)=>{
+    const y=top+i*rowH;
+    const label=`${tok(s.d.ctl)} · ${s.d.model} · ${tok(s.d.eye)} · ${s.d.sen}`;
+    g.fillStyle='#d6e4f6';g.font='13px Inter, sans-serif';g.fillText(label,12,y+5);
+    g.fillStyle='#1c2d45';g.fillRect(x0,y-7,bw,13);
+    g.fillStyle=sensorColor(s.d.sen);g.fillRect(x0,y-7,bw*s.agg.rate,13);
+    g.fillStyle='#f3f7ff';g.font='bold 13px Inter, sans-serif';
+    g.fillText(`${Math.round(s.agg.rate*100)}%`,x0+bw+8,y+4);
+    g.fillStyle='#8fa5c1';g.font='12px Inter, sans-serif';
+    g.fillText(`n=${s.agg.n}  ${LANG === 'ko' ? '충돌' : 'coll'} ${s.agg.coll.toFixed(1)}  ${s.agg.time.toFixed(1)}s`,x0+bw+48,y+4);
+    g.strokeStyle='rgba(70,94,126,.22)';g.beginPath();g.moveTo(10,y+15);g.lineTo(w-10,y+15);g.stroke();
+  });
+}
+
+function drawHist(id, rows, get, max, bins, unit) {
+  const {g,w,h}=ctx2d(id,190);
+  const P={l:42,r:12,t:22,b:30};
+  const ok=new Array(bins).fill(0),fail=new Array(bins).fill(0);
+  for(const r of rows){
+    const v=Math.max(0,get(r)||0),b=Math.min(bins-1,Math.floor(v/max*bins));
+    if(r.success)ok[b]++;else fail[b]++;
+  }
+  const peak=Math.max(1,...ok.map((v,i)=>v+fail[i]));
+  const plotH=h-P.t-P.b,bw=(w-P.l-P.r)/bins;
+  g.font='12px Inter, sans-serif';
+  for(let i=0;i<bins;i++){
+    const x=P.l+i*bw+2, total=ok[i]+fail[i];
+    const fh=fail[i]/peak*plotH,oh=ok[i]/peak*plotH;
+    g.fillStyle='#fb7185';g.fillRect(x,h-P.b-fh,bw-4,fh);
+    g.fillStyle='#34d399';g.fillRect(x,h-P.b-fh-oh,bw-4,oh);
+    if(i%2===0){g.fillStyle='#8fa5c1';g.fillText(Math.round(i*max/bins),x,h-10);}
+  }
+  g.strokeStyle='rgba(130,154,185,.4)';g.beginPath();g.moveTo(P.l,P.t);g.lineTo(P.l,h-P.b);g.lineTo(w-P.r,h-P.b);g.stroke();
+  g.fillStyle='#9bb0cb';g.fillText(`0${unit}`,P.l,h-10);g.fillText(`${max}${unit}`,w-P.r-28,h-10);
+  g.fillStyle='#34d399';g.fillRect(P.l+4,7,9,9);g.fillStyle='#b7c8de';g.fillText(t('cvOk'),P.l+18,16);
+  g.fillStyle='#fb7185';g.fillRect(P.l+62,7,9,9);g.fillStyle='#b7c8de';g.fillText(t('cvFail'),P.l+76,16);
+}
+function drawMap(id, layoutId, rows) {
+  const mz = layoutId ? MAZE_BY_ID[layoutId] : null;
+  const { g, w, h } = ctx2d(id, 340);
+  const P = 14, S = Math.min(w, h) - P * 2, OX = (w - S) / 2;
+  const X = (x) => OX + ((x + 0.5) / 1.0) * S;
+  const Z = (z) => P + ((z + 0.5) / 1.0) * S;
+  const K = S / 1.0;
+  g.strokeStyle = '#1e2d4d'; g.strokeRect(OX, P, S, S);
+  if (mz) {
+    for (const wl of (mz.walls || [])) {
+      const full = (wl.y0 === undefined && wl.y1 === undefined);
+      g.fillStyle = full ? 'rgba(125,180,235,.9)' : 'rgba(125,180,235,.45)';
+      const wx = X(wl.x - wl.w / 2), wz = Z(wl.z - wl.d / 2), ww = Math.max(3, wl.w * K), wd = Math.max(3, wl.d * K);
+      g.fillRect(wx, wz, ww, wd);
+      g.strokeStyle = 'rgba(170,210,250,.85)'; g.lineWidth = 1; g.strokeRect(wx + .5, wz + .5, ww - 1, wd - 1);
+    }
+    const st = mz.start, gl = mz.goal;
+    if (st) { g.strokeStyle = '#f97316'; g.lineWidth = 2; g.beginPath(); g.arc(X(st.x), Z(st.z), 6, 0, 7); g.stroke(); }
+    if (gl) { g.strokeStyle = '#22c55e'; g.beginPath(); g.arc(X(gl.x), Z(gl.z), 6, 0, 7); g.stroke(); g.lineWidth = 1; }
+  }
+  for (const r of rows) {
+    const p = r.final_pos;
+    if (!p) continue;
+    g.fillStyle = r.success ? 'rgba(74,222,128,.85)' : 'rgba(248,113,113,.85)';
+    g.beginPath(); g.arc(X(p.x), Z(p.z), 3, 0, 7); g.fill();
+  }
+  g.fillStyle = '#7d93b2'; g.fillText(t('cvMap'), 8, h - 6);
+}
+function fmtPct(a) {
+  if (!a) return `<span class="dim">${t('none')}</span>`;
+  const cls = a.rate >= 1 ? 'ok' : (a.rate >= 0.5 ? 'warn' : 'bad');
+  return `<span class="${cls}">${Math.round(a.rate * 100)}%</span> n=${a.n} c=${a.coll.toFixed(2)} t=${a.time.toFixed(1)}s`;
+}
+function heatCell(a) {
+  if (!a) return '<td class="c dim">-</td>';
+  const t = Math.max(0, Math.min(1, a.rate));
+  const bg = `rgb(${Math.round(248 - t * 174)},${Math.round(113 + t * 109)},${Math.round(113 + t * 15)})`;
+  return `<td class="c" style="background:${bg}">${Math.round(a.rate * 100)}%</td>`;
+}
+
+function drawLifAlifCompare(id,trials){
+  const pairs=alifRows(trials,d=>`${d.eye}·${d.sen}`).filter(x=>x.lif&&x.alif);
+  const rowH=36,top=34,height=Math.max(115,top+pairs.length*rowH+16);
+  const {g,w}=ctx2d(id,height);
+  const labelW=Math.min(155,w*.27),x0=labelW,bw=Math.max(70,w-labelW-76);
+  g.font='13px Inter, sans-serif';g.fillStyle='#9bb0cb';g.fillText(t('cvLifAlif'),12,18);
+  pairs.forEach((p,i)=>{
+    const y=top+i*rowH;
+    g.fillStyle='#d6e4f6';g.fillText(tokKey(p.k),12,y+4);
+    g.fillStyle='#1c2d45';g.fillRect(x0,y-10,bw,7);
+    g.fillStyle='#38bdf8';g.fillRect(x0,y-10,bw*p.lif.rate,7);
+    g.fillStyle='#1c2d45';g.fillRect(x0,y+1,bw,7);
+    g.fillStyle='#a78bfa';g.fillRect(x0,y+1,bw*p.alif.rate,7);
+    const delta=Math.round((p.alif.rate-p.lif.rate)*100);
+    g.fillStyle=delta>0?'#34d399':delta<0?'#fb7185':'#9bb0cb';
+    g.font='bold 13px Inter, sans-serif';g.fillText(`${Math.abs(delta)}%p`,x0+bw+9,y+3);
+  });
+  g.fillStyle='#38bdf8';g.fillRect(12,height-12,8,8);g.fillStyle='#9bb0cb';g.font='12px Inter, sans-serif';g.fillText('LIF',24,height-5);
+  g.fillStyle='#a78bfa';g.fillRect(60,height-12,8,8);g.fillStyle='#9bb0cb';g.font='12px Inter, sans-serif';g.fillText('ALIF',72,height-5);
+}
+function alifRows(trials, keyFn) {
+  const m = new Map();
+  for (const t of trials) {
+    const d = decodeCfg(t.cfg), k = keyFn(d);
+    if (!m.has(k)) m.set(k, { LIF: [], ALIF: [] });
+    m.get(k)[d.model === 'ALIF' ? 'ALIF' : 'LIF'].push(...t.rows);
+  }
+  return [...m.entries()].map(([k, v]) => ({ k, lif: aggRows(v.LIF), alif: aggRows(v.ALIF) }));
+}
+
+function drawMazeRanking(id,trials){
+  const groups=new Map();
+  for(const t of trials){
+    const k=mazeTag(t);
+    if(!groups.has(k))groups.set(k,[]);
+    groups.get(k).push(...t.rows);
+  }
+  const items=[...groups.entries()].map(([k,rows])=>({k,a:aggRows(rows)}))
+    .filter(x=>x.a).sort((a,b)=>b.a.rate-a.a.rate);
+  const rowH=34,top=34,height=Math.max(120,top+items.length*rowH+14);
+  const {g,w}=ctx2d(id,height);
+  const labelW=150,x0=labelW,bw=Math.max(80,w-labelW-170);
+  g.font='13px Inter, sans-serif';g.fillStyle='#9bb0cb';g.fillText(t('cvRank'),12,18);
+  items.forEach((it,i)=>{
+    const y=top+i*rowH;
+    const tn=(TABS.find(x=>x.id===it.k)||{})[LANG]||it.k.toUpperCase();
+    g.fillStyle='#d6e4f6';g.fillText(tn,12,y+4);
+    g.fillStyle='#1c2d45';g.fillRect(x0,y-7,bw,13);
+    const c=it.a.rate>=.8?'#34d399':it.a.rate>=.5?'#fbbf24':'#fb7185';
+    g.fillStyle=c;g.fillRect(x0,y-7,bw*it.a.rate,13);
+    g.fillStyle='#f3f7ff';g.font='bold 13px Inter, sans-serif';
+    g.fillText(`${Math.round(it.a.rate*100)}%`,x0+bw+9,y+4);
+    g.fillStyle='#8fa5c1';g.font='12px Inter, sans-serif';
+    g.fillText(`n=${it.a.n} · ${LANG === 'ko' ? '충돌' : 'coll'} ${it.a.coll.toFixed(1)} · ${it.a.time.toFixed(1)}s`,x0+bw+52,y+4);
+  });
+}
+function cmpAB(a, b, colorA, colorB) {
+  const va = Math.round(a.rate * 100), vb = Math.round(b.rate * 100);
+  const d = va - vb;
+  const na = `<span${d > 0 ? ` style="color:${colorA}"` : ''}>${va}<small>%</small></span>`;
+  const nb = `<span${d < 0 ? ` style="color:${colorB}"` : ''}>${vb}<small>%</small></span>`;
+  return `${na} ${nb} <small>(${Math.abs(d)}%p)</small>`;
+}
+function renderAll() {
+  const rows = MAIN.flatMap((t) => t.rows);
+  const A = aggRows(rows);
+  if (!A) { document.getElementById('body').innerHTML = `<div class="card"><h2>${t('errT')}</h2><p style="color:#9bb0cb;line-height:1.7">${t('errB')}<code>experiments/${DS[CUR].cfg}</code> + runs ${DS[CUR].runs.length}</p></div>`; return; }
+  const lif = aggRows(MAIN.filter((t) => decodeCfg(t.cfg).model === 'LIF').flatMap((t) => t.rows));
+  const alif = aggRows(MAIN.filter((t) => decodeCfg(t.cfg).model === 'ALIF').flatMap((t) => t.rows));
+  const fog = aggRows(MAIN.filter((t) => decodeCfg(t.cfg).sen === 'Fog').flatMap((t) => t.rows));
+  const fus = aggRows(MAIN.filter((t) => decodeCfg(t.cfg).sen === 'Fusion').flatMap((t) => t.rows));
+  const b = bestTrial(MAIN);
+  const bd = b ? decodeCfg(b.cfg) : null;
+  const el = document.getElementById('body');
+  el.innerHTML = `
+  <div class="card"><h2>${t('allKpi')} <span class="hint">${MAIN.length}${t('cells')}</span></h2>
+    <div class="kpi">
+      <span>${t('kRate')}<b>${Math.round(A.rate * 100)}%</b></span>
+      <span>ALIF · LIF<b style="font-size:18px">${cmpAB(alif, lif, '#a78bfa', '#38bdf8')}</b></span>
+      <span>Fog · Fusion<b style="font-size:18px">${cmpAB(fog, fus, '#38bdf8', '#a78bfa')}</b></span>
+      <span>${t('kAvgColl')}<b>${A.coll.toFixed(2)}</b></span>
+      <span>${t('kAvgTime')}<b>${A.time.toFixed(1)}s</b></span>
+      <span>${t('kBest')}<b style="font-size:14px">${b ? `${mazeTag(b).toUpperCase()} ${bd.model}·${tok(bd.eye)}·${bd.sen}` : '-'}</b></span>
+    </div></div>
+  <div class="card"><h2>${t('mazePerf')} <span class="hint">${t('hintSort')}</span></h2><canvas id="c-maze-rank"></canvas></div>
+  <div class="card"><div class="section-head"><h2>${t('byCond')} <span class="hint">${t('hintCond')}</span></h2><span class="pill">${t('pillSensor')}</span></div><div class="legend"><span><i style="background:#38bdf8"></i>Fog</span><span><i style="background:#60a5fa"></i>Depth</span><span><i style="background:#f59e0b"></i>Flow</span><span><i style="background:#a78bfa"></i>Fusion</span></div><canvas id="c-grp"></canvas></div>
+  <div class="card"><h2>${t('heat')} <span class="hint">${t('hintCell')}</span></h2><table class="heat" id="t-heat"></table></div>
+  <div class="card"><h2>${t('gain')} <span class="hint">${t('hintEB')}</span></h2><table id="t-alif"></table></div>
+  <div class="grid2">
+    <div class="card"><h2>${t('timeDist')}</h2><canvas id="c-ht"></canvas></div>
+    <div class="card"><h2>${t('collDist')}</h2><canvas id="c-hc"></canvas></div>
+  </div>`;
+  drawMazeRanking('c-maze-rank', MAIN);
+  drawGroupBars('c-grp', MAIN);
+  drawHist('c-ht', rows, (r) => r.elapsed_s, 80, 16, 's');
+  drawHist('c-hc', rows, (r) => Math.min(r.collisions, 10), 10, 11, '');
+  const cols = ['LIF·단안·Fog', 'LIF·단안·Fusion', 'LIF·양안·Fog', 'LIF·양안·Fusion', 'ALIF·단안·Fog', 'ALIF·단안·Fusion', 'ALIF·양안·Fog', 'ALIF·양안·Fusion'];
+  const cellOf = (tag, ck) => aggRows(MAIN.filter((t) => mazeTag(t) === tag && grpKey(decodeCfg(t.cfg)) === '뉴런·' + ck).flatMap((t) => t.rows));
+  document.getElementById('t-heat').innerHTML =
+    '<tr><th class="l">' + t('thMaze') + '</th>' + cols.map((c) => `<th>${tokKey(c)}</th>`).join('') + '</tr>' +
+    TABS.filter((x) => x.id !== 'all').map((x) =>
+      `<tr><td class="l">${LANG === 'ko' ? x.ko : x.en}</td>` + cols.map((c) => heatCell(cellOf(x.id, c))).join('') + '</tr>').join('');
+  document.getElementById('t-alif').innerHTML =
+    '<tr><th class="l">' + t('thCond') + '</th><th class="l">LIF</th><th class="l">ALIF</th><th>Δ%p</th></tr>' +
+    alifRows(MAIN, (d) => `${d.eye}·${d.sen}`).map((r) => {
+      const d = r.alif && r.lif ? Math.round((r.alif.rate - r.lif.rate) * 100) : 0;
+      const cls = d > 0 ? 'ok' : (d < 0 ? 'bad' : 'dim');
+      return `<tr><td class="l">${tokKey(r.k)}</td><td class="l">${fmtPct(r.lif)}</td><td class="l">${fmtPct(r.alif)}</td><td class="${cls}">${Math.abs(d)}</td></tr>`;
+    }).join('');
+}
+function renderMaze(tag) {
+  const T = TABS.find((x) => x.id === tag);
+  const trials = MAIN.filter((t) => mazeTag(t) === tag);
+  const rows = trials.flatMap((t) => t.rows);
+  const A = aggRows(rows);
+  if (!A) { document.getElementById('body').innerHTML = `<div class="card"><h2>${t('mazeEmptyT')}</h2><p style="color:#9bb0cb">${t('mazeEmptyB')}</p></div>`; return; }
+  const b = bestTrial(trials);
+  const bd = b ? decodeCfg(b.cfg) : null;
+  const el = document.getElementById('body');
+  el.innerHTML = `
+  <div class="card"><h2>${LANG === 'ko' ? T.ko : T.en} ${t('summary')} <span class="hint">${trials.length}${t('cells')}</span></h2>
+    <div class="kpi">
+      <span>${t('kRateS')}<b>${A ? Math.round(A.rate * 100) + '%' : '-'}</b></span>
+      <span>${t('kBestCond')}<b style="font-size:18px">${b ? `${bd.model}·${tok(bd.eye)}·${bd.sen}` : '-'}</b></span>
+      <span>${t('kBestScore')}<b style="font-size:18px">${b ? `${Math.round(b.agg.rate * 100)}<small>%</small>/${b.agg.coll.toFixed(2)}/${b.agg.time.toFixed(1)}<small>s</small>` : '-'}</b></span>
+      <span>${t('kAvgColl')}<b>${A ? A.coll.toFixed(2) : '-'}</b></span>
+      <span>${t('kAvgTime')}<b>${A ? A.time.toFixed(1) + 's' : '-'}</b></span>
+    </div></div>
+  <div class="grid2">
+    <div class="card"><h2>${t('byCond')}</h2><canvas id="c-grp"></canvas></div>
+    <div class="card"><h2>${t('mapTitle')} <span class="hint">${T.layout ? t('mapHintL') : t('mapHintN')}</span></h2><canvas id="c-map"></canvas></div>
+  </div>
+  <div class="card"><h2>${t('h2h')} <span class="hint">${t('h2hHint')}</span></h2><canvas id="c-lif-alif"></canvas></div>
+  <div class="card"><h2>${t('numCmp')}</h2><table id="t-alif"></table></div>
+  <div class="grid2">
+    <div class="card"><h2>${t('timeDist')}</h2><canvas id="c-ht"></canvas></div>
+    <div class="card"><h2>${t('collDist')}</h2><canvas id="c-hc"></canvas></div>
+  </div>`;
+  drawGroupBars('c-grp', trials);
+  drawLifAlifCompare('c-lif-alif', trials);
+  drawMap('c-map', T.layout, rows);
+  drawHist('c-ht', rows, (r) => r.elapsed_s, 80, 16, 's');
+  drawHist('c-hc', rows, (r) => Math.min(r.collisions, 10), 10, 11, '');
+  document.getElementById('t-alif').innerHTML =
+    '<tr><th class="l">' + t('thCond') + '</th><th class="l">LIF</th><th class="l">ALIF</th><th>Δ%p</th></tr>' +
+    alifRows(trials, (d) => `${d.eye}·${d.sen}`).map((r) => {
+      const d = r.alif && r.lif ? Math.round((r.alif.rate - r.lif.rate) * 100) : 0;
+      const cls = d > 0 ? 'ok' : (d < 0 ? 'bad' : 'dim');
+      return `<tr><td class="l">${tokKey(r.k)}</td><td class="l">${fmtPct(r.lif)}</td><td class="l">${fmtPct(r.alif)}</td><td class="${cls}">${Math.abs(d)}</td></tr>`;
+    }).join('');
+}
+let CUR = 'cur';
+let SEL = 'all';
+function render(id) { SEL = id; if (id === 'all') renderAll(); else renderMaze(id); }
+async function init(ds) {
+  CUR = ds;
+  applyStatic();
+  document.getElementById('dssub').textContent = LANG === 'ko' ? DS[ds].sub : DS[ds].subEn;
+  document.getElementById('dsfoot').textContent = LANG === 'ko' ? DS[ds].foot : DS[ds].footEn;
+  await loadAll(ds);
+  const n = MAIN.flatMap((t) => t.rows).length;
+  document.getElementById('scope').textContent =
+    `${LANG === 'ko' ? DS[ds].ko : DS[ds].en} · ${MAIN.length}${t('cells')} · ${n} trials · ${new Date().toLocaleTimeString(LANG === 'ko' ? 'ko-KR' : 'en-US')}`;
+  const dt = document.getElementById('dstabs');
+  dt.innerHTML = '';
+  ['old', 'cur'].forEach((k) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (k === ds ? ' sel' : '');
+    b.textContent = LANG === 'ko' ? DS[k].ko : DS[k].en;
+    b.addEventListener('click', () => init(k));
+    dt.appendChild(b);
+  });
+  const have = new Set(MAIN.map(mazeTag));
+  if (SEL !== 'all' && !have.has(SEL)) SEL = 'all';
+  const tabs = document.getElementById('tabs');
+  tabs.innerHTML = '';
+  TABS.forEach((s) => {
+    const b = document.createElement('button');
+    b.className = 'tab' + (s.id === SEL ? ' sel' : '');
+    b.textContent = LANG === 'ko' ? s.ko : s.en;
+    if (s.id !== 'all' && !have.has(s.id)) b.disabled = true;
+    b.addEventListener('click', () => {
+      tabs.querySelectorAll('.tab').forEach((x) => x.classList.remove('sel'));
+      b.classList.add('sel');
+      render(s.id);
+    });
+    tabs.appendChild(b);
+  });
+  render(SEL);
+}
+document.getElementById('langBtn').addEventListener('click', () => {
+  LANG = LANG === 'ko' ? 'en' : 'ko';
+  try { localStorage.setItem('axcmp_lang', LANG); } catch (e) { /* ignore */ }
+  init(CUR);
+});
+{
+  const q = new URLSearchParams(location.search);
+  const tb = q.get('tab');
+  if (tb && TABS.some((s) => s.id === tb)) SEL = tb;
+  init(q.get('ds') === 'old' ? 'old' : 'cur');
+}
+</script>
+</body>
+</html>

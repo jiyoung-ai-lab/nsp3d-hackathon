@@ -1,0 +1,70 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# Build and test logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS and Editor metadata
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test output and captures
+capture/
+logs/
+
+# NSP3D - Large & Secret 
+*.npy
+*.npz
+*.zip
+*.bin
+.env
+.env.local
+credit_log.jsonl
+
+# Local-only experiment outputs (private validation; GitHub gets source only)
+experiments/results/
+# Python harness SHIPS in this public copy (pip install -r requirements.txt)
+# Only run artifacts stay ignored (*.log, results_*, flight_log_*)
+# Ax study snapshots are run artifacts
+experiments/ax_*.json
+# Test suite ships (verifiers are submission evidence)
+flight_log_*.jsonl
+results_*.json
+results_*.csv
+
+# Patent - NEVER commit, not even to private repos (2026-11-03)
+*[Pp][Aa][Tt][Ee][Nn][Tt]*
+*특허*
+*명세*
+*출원*
+
+# Ax run evidence - 6 curated runs ship, other snapshots stay local
+experiments/ax_*_runs.jsonl
+!experiments/ax_main_desk_runs.jsonl
+!experiments/ax_cor0_runs.jsonl
+!experiments/ax_multi1_runs.jsonl
+!experiments/ax_zig0_runs.jsonl
+!experiments/ax_holdout_runs.jsonl
+!experiments/ax_fogsweep_runs.jsonl
+
+# Media - NEVER commit (local captures only, 100MB+ GitHub risk)
+*.mp4
+*.webm
+*.mov
+*.avi
+*.mp3
+*.wav
+*.xlsx

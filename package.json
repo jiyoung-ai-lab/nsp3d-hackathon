@@ -1,0 +1,21 @@
+{
+  "name": "nsp3d",
+  "version": "1.0.0",
+  "description": "Neural Simulation Playground 3D - Male CNS v1.0 Connectome Flight Simulation",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/run.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.64.1"
+  },
+  "keywords": [
+    "connectome",
+    "drosophila",
+    "threejs",
+    "snn",
+    "biorobotics"
+  ],
+  "author": "",
+  "license": "UNLICENSED"
+}

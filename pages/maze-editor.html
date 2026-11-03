@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title data-i18n="medTitle">NSP3D Maze Design — 2D/3D designer</title>
+  <link rel="stylesheet" href="../assets/style.css">
+  <script type="importmap">
+  { "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+  </script>
+  <style>
+    :root{
+      --bg:#060b16;--panel:#0b1426;--card:#101d35;--border:rgba(99,179,237,.22);
+      --text:#e2e8f0;--muted:#94a3b8;--accent:#38bdf8;--amber:#f59e0b;--green:#10b981;--red:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font:var(--fs-11,11px)/1.42 Inter,"Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--text);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+    header.header{position:static;width:auto;margin:12px 12px 0}
+    header .brand{flex:0 1 auto}
+    header .header-actions{margin-left:12px}
+    .home-link{padding:6px 8px}
+    .home-link svg{display:block}
+    .bottom-bar{position:static;width:auto;min-height:0;border-radius:0;border-left:none;border-right:none;border-bottom:none}
+    button,select{
+      background:#162642;color:var(--text);border:1px solid var(--border);padding:7px 10px;border-radius:9px;
+      font-size:var(--fs-11,11px);font-weight:600;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:.15s
+    }
+    button:hover{background:#1e3458;border-color:var(--accent)}
+    button.primary{background:linear-gradient(135deg,#0284c7,#2563eb);border-color:#38bdf8;color:#fff}
+    button.amber{background:rgba(245,158,11,.18);border-color:rgba(245,158,11,.5);color:#fcd34d}
+    button.danger{background:rgba(239,68,68,.16);border-color:rgba(239,68,68,.45);color:#fca5a5}
+    button.active{background:#0284c7;border-color:#7dd3fc;color:#fff}
+    .workspace{display:grid;grid-template-columns:340px 1fr 1fr;flex:1;min-height:0}
+    @media(max-width:1024px){.workspace{grid-template-columns:1fr;overflow-y:auto}}
+    .sidebar{background:var(--panel);border-right:1px solid var(--border);padding:14px;overflow-y:auto;display:flex;flex-direction:column;gap:12px}
+    .card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px}
+    .card h3{margin:0 0 8px;font-size:var(--fs-14,14px);color:#fcd676;display:flex;justify-content:space-between;align-items:center}
+    .field{display:flex;justify-content:space-between;align-items:center;margin:6px 0;font-size:var(--fs-11,11px);color:#b8c6d6;gap:8px}
+    .field input[type="range"],.field input[type="number"],.field select{flex:1;max-width:165px}
+    .field input[type="range"]{accent-color:#f5b942}
+    .field b{color:#fcd676}
+    .tool-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+    .pane{position:relative;display:flex;flex-direction:column;border-right:1px solid var(--border);min-height:300px}
+    .pane-head{padding:8px 14px;background:rgba(15,23,42,.85);border-bottom:1px solid var(--border);font-size:var(--fs-11,11px);display:flex;justify-content:space-between;align-items:center}
+    .canvas-wrap{flex:1;display:flex;align-items:center;justify-content:center;background:#040811;position:relative;overflow:hidden}
+    #map2d{background:#07101f;border:1px solid rgba(56,189,248,.35);border-radius:8px;cursor:crosshair;max-width:94%;max-height:94%}
+    #view3d{width:100%;height:100%}
+    .legend{display:flex;gap:10px;font-size:var(--fs-11,11px);color:var(--muted);flex-wrap:wrap}
+    .dot{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:4px;vertical-align:middle}
+    .toast{position:fixed;bottom:18px;right:18px;background:#0f172a;border:1px solid #38bdf8;color:#e0f2fe;padding:10px 16px;border-radius:10px;font-size:var(--fs-11,11px);box-shadow:0 10px 25px rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:.25s;z-index:50}
+    .toast.show{opacity:1}
+    .wall-list{max-height:175px;overflow-y:auto;font-size:var(--fs-11,11px);display:flex;flex-direction:column;gap:4px}
+    .wall-item{display:flex;justify-content:space-between;align-items:center;padding:5px 8px;border-radius:6px;background:rgba(15,23,42,.65);border:1px solid transparent;cursor:pointer}
+    .wall-item.selected{border-color:#38bdf8;background:rgba(56,189,248,.15)}
+  </style>
+</head>
+<body>
+  <header class="glass header">
+    <div class="bee-mark">🧠</div>
+    <div class="brand">
+      <div>
+        <strong id="appTitle" data-i18n="appTitle">Neural Simulation Playground</strong>
+        <span class="tag" data-i18n="medRoom">미로 디자인</span>
+      </div>
+      <small data-i18n="medSub">100 × 100 × 20 cm 챔버 · 2D/3D 미로 디자인</small>
+    </div>
+    <div class="header-actions">
+      <a id="homeLink" class="nav-studio-link cyan-link home-link" href="../index.html"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10.5V20h13v-9.5"/></svg></a>
+      <label class="language-control"><span class="sr-only">Language / 언어</span><select id="langSelect" class="lang-btn" aria-label="Language / 언어"><option value="en">English</option><option value="ko" selected>한국어</option></select></label>
+    </div>
+  </header>
+
+  <div class="workspace">
+    <aside class="sidebar">
+      <div class="card">
+        <h3><span data-i18n="medTools">🛠️ 편집 도구 (2D 클릭/드래그)</span></h3>
+        <div class="tool-grid">
+          <button type="button" class="tool-btn active" data-tool="select" data-i18n="medToolSelect">👆 벽 선택/이동</button>
+          <button type="button" class="tool-btn" data-tool="add_full" data-i18n="medToolFull">🧱 일반 벽 추가</button>
+          <button type="button" class="tool-btn" data-tool="add_top" data-i18n="medToolTop">🟧 상단 게이트 추가</button>
+          <button type="button" class="tool-btn" data-tool="add_bottom" data-i18n="medToolBottom">🟦 하단 게이트 추가</button>
+          <button type="button" class="tool-btn" data-tool="set_start" data-i18n="medToolStart">🟢 시작점 지정</button>
+          <button type="button" class="tool-btn" data-tool="set_goal" data-i18n="medToolGoal">🎯 목표점 지정</button>
+        </div>
+      </div>
+
+      <div class="card" id="selectedWallCard">
+        <h3><span data-i18n="medSelWall">📐 선택된 벽 속성</span><button type="button" id="deleteWallBtn" class="danger" style="padding:3px 8px;font-size:11px" data-i18n="medDelete">삭제</button></h3>
+        <div class="field"><span data-i18n="medKind">벽 종류</span>
+          <select id="wallKindInput">
+            <option value="full" data-i18n="medKindFull">🧱 전체 벽 (0~20cm)</option>
+            <option value="open_top" data-i18n="medKindTop">🟧 상단 개방 (하단 막힘)</option>
+            <option value="open_bottom" data-i18n="medKindBottom">🟦 하단 개방 (상단 막힘)</option>
+          </select>
+        </div>
+        <div class="field"><span data-i18n="medX">중심 X (m)</span><input id="wallXInput" type="range" min="-0.46" max="0.46" step="0.01" value="0"><b id="wallXOut">0.00</b></div>
+        <div class="field"><span data-i18n="medZ">중심 Z (m)</span><input id="wallZInput" type="range" min="-0.46" max="0.46" step="0.01" value="0"><b id="wallZOut">0.00</b></div>
+        <div class="field"><span data-i18n="medW">가로 폭 W (m)</span><input id="wallWInput" type="range" min="0.01" max="0.90" step="0.01" value="0.30"><b id="wallWOut">0.30</b></div>
+        <div class="field"><span data-i18n="medL">세로 길이 L (m)</span><input id="wallLInput" type="range" min="0.01" max="0.90" step="0.01" value="0.02"><b id="wallLOut">0.02</b></div>
+        <div class="field"><span data-i18n="medBot">하단 높이 (m)</span><input id="wallBotInput" type="range" min="0" max="0.14" step="0.005" value="0"><b id="wallBotOut">0.00</b></div>
+        <div class="field"><span data-i18n="medTop">상단 높이 (m)</span><input id="wallTopInput" type="range" min="0.04" max="0.20" step="0.005" value="0.20"><b id="wallTopOut">0.20</b></div>
+        <button type="button" id="rotateWallBtn" style="width:100%;margin-top:6px;justify-content:center" data-i18n="medRotate">🔄 가로/세로 90° 회전</button>
+      </div>
+
+      <div class="card">
+        <h3><span><span data-i18n="medWallList">📋 미로 벽 목록</span> (<span id="wallCountLabel">0</span><span data-i18n="medWallUnit">개</span>)</span><button type="button" id="clearWallsBtn" style="padding:3px 8px;font-size:11px" data-i18n="medClear">전체 초기화</button></h3>
+        <div id="wallList" class="wall-list"></div>
+      </div>
+
+      <div class="card">
+        <h3><span data-i18n="medGuideTitle">💡 사용 안내</span></h3>
+        <p id="medGuide" style="margin:0;font-size:var(--fs-11,11px);color:var(--muted);line-height:1.55"></p>
+      </div>
+    </aside>
+
+    <section class="pane">
+      <div class="pane-head">
+        <b data-i18n="medPane2d">📐 2D 평면도 에디터</b>
+        <div class="legend">
+          <span><i class="dot" style="background:#3b82f6"></i><span data-i18n="medLegFull">일반 벽</span></span>
+          <span><i class="dot" style="background:#f59e0b"></i><span data-i18n="medLegTop">상단 통과</span></span>
+          <span><i class="dot" style="background:#38bdf8"></i><span data-i18n="medLegBottom">하단 통과</span></span>
+          <span><i class="dot" style="background:#22c55e"></i><span data-i18n="medLegStart">시작(S)</span></span>
+          <span><i class="dot" style="background:#a3e635"></i><span data-i18n="medLegGoal">목표(G)</span></span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="map2d" width="520" height="520"></canvas>
+      </div>
+    </section>
+
+    <section class="pane" style="border-right:none">
+      <div class="pane-head">
+        <b data-i18n="medPane3d">🌐 실시간 3D 미리보기 (드래그: 회전 · 휠: 줌)</b>
+        <span id="coordReadout" style="color:#7dd3fc;font-family:monospace">1.0m × 1.0m × 0.20m</span>
+      </div>
+      <div class="canvas-wrap">
+        <div id="view3d"></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="glass bottom-bar">
+    <div class="bottom-group map-controls"><label for="presetSelect" data-i18n="medPresetLabel">기본 스테이지:</label><select id="presetSelect"><option value="multi_level_3d" data-i18n="medPreset1">Stage 1 · 다층</option><option value="zigzag_labyrinth" data-i18n="medPreset2">Stage 2 · 지그재그</option><option value="grid_matrix" data-i18n="medPreset3">Stage 3 · 격자</option><option value="spiral_ascent" data-i18n="medPreset4">Stage 4 · 계단</option><option value="extreme_championship" data-i18n="medPreset5">Stage 5 · 익스트림</option></select></div>
+    <div class="bottom-group primary-controls"><button id="openEasyBtn" class="small-button amber" data-i18n="medEasy">✨ 통로 넓히기</button><button id="applyToSimBtn" class="small-button primary" data-i18n="medApply">🚀 시뮬레이터에 적용</button></div>
+  </div>
+
+  <div id="toast" class="toast"></div>
+
+  <script type="module">
+    import { setupSampleGlobals } from '../src/ui/sample-shim.js';
+    setupSampleGlobals();
+  </script>
+  <script type="module">
+  // Sample maze-editor logic verbatim (reference/samplesource/maze-editor.html).
+  // Delta vs sample: ESM globals via sample-shim.js (no assets/maze-layouts.js script).
+  // Local deltas: shared i18n (med* keys), Del-key delete, Shift+click vertical walls.
+  import { t, setLang, initLang } from '../src/ui/i18n.js';
+  (() => {
+    'use strict';
+    const $=id=>document.getElementById(id),clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+    const KIND_LABEL={full:'medKFull',open_top:'medKTop',open_bottom:'medKBottom'};
+    const PRESETS=window.REFERENCE_MAZE_LAYOUTS||{};
+    let currentLayout=JSON.parse(JSON.stringify(PRESETS.multi_level_3d||{
+      thickness:0.02,start:[0,0.4],goal:[0,-0.4],hazards:[5,6],walls:[]
+    }));
+    let selectedIdx=0,activeTool='select',dragging=false,dragOffset={x:0,z:0};
+
+    function showToast(msg){
+      const t=$('toast');t.textContent=msg;t.classList.add('show');
+      clearTimeout(showToast._timer);
+      showToast._timer=setTimeout(()=>t.classList.remove('show'),2400);
+    }
+
+    // 2D Canvas setup
+    const c2d=$('map2d'),ctx=c2d.getContext('2d');
+    const worldToPx=x=>(x+0.5)*c2d.width;
+    const pxToWorld=px=>clamp(px/c2d.width-0.5,-0.48,0.48);
+
+    function draw2D(){
+      const w=c2d.width,h=c2d.height;
+      ctx.clearRect(0,0,w,h);
+      ctx.fillStyle='#07101f';ctx.fillRect(0,0,w,h);
+      // Grid lines every 10cm
+      ctx.strokeStyle='rgba(56,189,248,0.12)';ctx.lineWidth=1;
+      for(let i=0;i<=10;i++){
+        const p=i*(w/10);
+        ctx.beginPath();ctx.moveTo(p,0);ctx.lineTo(p,h);ctx.stroke();
+        ctx.beginPath();ctx.moveTo(0,p);ctx.lineTo(w,p);ctx.stroke();
+      }
+      // Outer boundary
+      ctx.strokeStyle='rgba(96,165,250,0.75)';ctx.lineWidth=3;
+      ctx.strokeRect(2,2,w-4,h-4);
+
+      // Draw walls
+      (currentLayout.walls||[]).forEach((wall,idx)=>{
+        const [x,z,ww,ll,bot,top,kind]=wall;
+        const px=worldToPx(x-ww/2),pz=worldToPx(-z-ll/2);
+        const pw=ww*w,pl=ll*h;
+        ctx.fillStyle=kind==='open_top'?'rgba(245,158,11,0.55)':kind==='open_bottom'?'rgba(56,189,248,0.55)':'rgba(37,99,235,0.65)';
+        ctx.strokeStyle=idx===selectedIdx?'#ffffff':(kind==='open_top'?'#fbbf24':kind==='open_bottom'?'#38bdf8':'#60a5fa');
+        ctx.lineWidth=idx===selectedIdx?2.5:1.2;
+        ctx.fillRect(px,pz,Math.max(4,pw),Math.max(4,pl));
+        ctx.strokeRect(px,pz,Math.max(4,pw),Math.max(4,pl));
+      });
+
+      // Start & Goal markers
+      const sx=worldToPx(currentLayout.start[0]),sz=worldToPx(-currentLayout.start[1]);
+      ctx.fillStyle='#22c55e';ctx.beginPath();ctx.arc(sx,sz,9,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#052e16';ctx.font='bold 10px sans-serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('S',sx,sz);
+
+      const gx=worldToPx(currentLayout.goal[0]),gz=worldToPx(-currentLayout.goal[1]);
+      ctx.fillStyle='#a3e635';ctx.beginPath();ctx.arc(gx,gz,10,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#1a2e05';ctx.fillText('G',gx,gz);
+    }
+
+    function syncSidebar(){
+      const walls=currentLayout.walls||[];
+      $('wallCountLabel').textContent=walls.length;
+      $('wallList').innerHTML=walls.map((w,i)=>`<div class="wall-item ${i===selectedIdx?'selected':''}" data-idx="${i}"><span>#${i+1} · ${t(KIND_LABEL[w[6]]||'medKFull')}</span><small>(${w[0].toFixed(2)}, ${w[1].toFixed(2)}) ${w[2].toFixed(2)}×${w[3].toFixed(2)}m</small></div>`).join('');
+      document.querySelectorAll('.wall-item').forEach(el=>el.addEventListener('click',()=>{
+        selectedIdx=Number(el.dataset.idx);syncSidebar();draw2D();rebuild3D();
+      }));
+      const sel=walls[selectedIdx];
+      $('selectedWallCard').style.opacity=sel?'1':'0.45';
+      if(sel){
+        $('wallKindInput').value=sel[6]||'full';
+        $('wallXInput').value=sel[0];$('wallXOut').textContent=Number(sel[0]).toFixed(2);
+        $('wallZInput').value=sel[1];$('wallZOut').textContent=Number(sel[1]).toFixed(2);
+        $('wallWInput').value=sel[2];$('wallWOut').textContent=Number(sel[2]).toFixed(2);
+        $('wallLInput').value=sel[3];$('wallLOut').textContent=Number(sel[3]).toFixed(2);
+        $('wallBotInput').value=sel[4];$('wallBotOut').textContent=Number(sel[4]).toFixed(2);
+        $('wallTopInput').value=sel[5];$('wallTopOut').textContent=Number(sel[5]).toFixed(2);
+      }
+    }
+
+    // 3D Preview setup
+    const container=$('view3d');
+    const scene=new THREE.Scene();scene.background=new THREE.Color(0x050914);
+    const camera=new THREE.PerspectiveCamera(46,1,0.01,10);
+    const renderer=new THREE.WebGLRenderer({antialias:true});
+    container.appendChild(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xc6efff,0x1a2835,1.6));
+    const dirLight=new THREE.DirectionalLight(0xffe1aa,1.8);dirLight.position.set(0.8,1.5,0.9);scene.add(dirLight);
+    const floor=new THREE.Mesh(new THREE.BoxGeometry(1,0.008,1),new THREE.MeshStandardMaterial({color:0x101c2a,roughness:0.8}));
+    floor.position.y=-0.004;scene.add(floor);
+    scene.add(new THREE.GridHelper(1,20,0x26748a,0x1d3547));
+    const meshGroup=new THREE.Group();scene.add(meshGroup);
+    let camYaw=0.65,camPitch=0.62,camRadius=1.22,camDrag=null;
+
+    function rebuild3D(){
+      while(meshGroup.children.length){
+        const c=meshGroup.children.pop();
+        c.traverse(n=>{if(n.geometry)n.geometry.dispose();if(n.material)n.material.dispose()});
+      }
+      // Outer glass frame
+      const frameMat=new THREE.LineBasicMaterial({color:0x475569});
+      const boxEdge=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,0.20,1)),frameMat);
+      boxEdge.position.y=0.10;meshGroup.add(boxEdge);
+
+      (currentLayout.walls||[]).forEach((w,idx)=>{
+        const [x,z,ww,ll,bot,top,kind]=w;
+        const gate=kind==='open_top',under=kind==='open_bottom';
+        const color=gate?0xd97706:under?0x0284c7:0x1d4ed8;
+        const geo=new THREE.BoxGeometry(ww,Math.max(0.01,top-bot),ll);
+        const mat=new THREE.MeshStandardMaterial({color,transparent:true,opacity:idx===selectedIdx?0.82:0.52,roughness:0.2});
+        const mesh=new THREE.Mesh(geo,mat);
+        mesh.position.set(x,(bot+top)/2,-z);
+        const edge=new THREE.LineSegments(new THREE.EdgesGeometry(geo),new THREE.LineBasicMaterial({color:idx===selectedIdx?0xffffff:0x7dd3fc}));
+        mesh.add(edge);meshGroup.add(mesh);
+      });
+
+      const sGeo=new THREE.SphereGeometry(0.018,16,12);
+      const sMesh=new THREE.Mesh(sGeo,new THREE.MeshBasicMaterial({color:0x22c55e}));
+      sMesh.position.set(currentLayout.start[0],0.02,-currentLayout.start[1]);meshGroup.add(sMesh);
+
+      const gGeo=new THREE.TorusGeometry(0.024,0.004,10,24);
+      const gMesh=new THREE.Mesh(gGeo,new THREE.MeshBasicMaterial({color:0x39ff14}));
+      gMesh.position.set(currentLayout.goal[0],0.025,-currentLayout.goal[1]);meshGroup.add(gMesh);
+    }
+
+    function resize3D(){
+      const r=container.getBoundingClientRect();
+      if(r.width>0&&r.height>0){
+        camera.aspect=r.width/r.height;camera.updateProjectionMatrix();
+        renderer.setSize(r.width,r.height);
+      }
+    }
+    addEventListener('resize',resize3D);
+    renderer.domElement.addEventListener('pointerdown',e=>{camDrag={x:e.clientX,y:e.clientY}});
+    addEventListener('pointermove',e=>{if(!camDrag)return;camYaw+=(e.clientX-camDrag.x)*0.007;camPitch=clamp(camPitch+(e.clientY-camDrag.y)*0.006,0.12,1.45);camDrag={x:e.clientX,y:e.clientY}});
+    addEventListener('pointerup',()=>camDrag=null);
+    renderer.domElement.addEventListener('wheel',e=>{camRadius=clamp(camRadius*Math.exp(e.deltaY*0.001),0.35,2.4)},{passive:true});
+
+    function animate(){
+      requestAnimationFrame(animate);
+      camera.position.set(Math.sin(camYaw)*Math.cos(camPitch)*camRadius,0.08+Math.sin(camPitch)*camRadius,Math.cos(camYaw)*Math.cos(camPitch)*camRadius);
+      camera.lookAt(0,0.08,0);
+      renderer.render(scene,camera);
+    }
+
+    // 2D Interaction
+    c2d.addEventListener('pointerdown',e=>{
+      const rect=c2d.getBoundingClientRect();
+      const wx=pxToWorld((e.clientX-rect.left)*(c2d.width/rect.width));
+      const wz=-pxToWorld((e.clientY-rect.top)*(c2d.height/rect.height));
+      $('coordReadout').textContent=`X: ${wx.toFixed(2)}m, Z: ${wz.toFixed(2)}m`;
+      if(activeTool==='set_start'){
+        currentLayout.start=[+wx.toFixed(2),+wz.toFixed(2)];draw2D();rebuild3D();return;
+      }
+      if(activeTool==='set_goal'){
+        currentLayout.goal=[+wx.toFixed(2),+wz.toFixed(2)];draw2D();rebuild3D();return;
+      }
+      if(activeTool.startsWith('add_')){
+        const kind=activeTool==='add_top'?'open_top':activeTool==='add_bottom'?'open_bottom':'full';
+        const bot=kind==='open_bottom'?0.072:0;
+        const top=kind==='open_top'?0.055:0.20;
+        const vertical=e.shiftKey; // Shift+click adds a vertical wall (0.02 x 0.32)
+        currentLayout.walls.push([+wx.toFixed(2),+wz.toFixed(2),vertical?0.02:0.32,vertical?0.32:0.02,bot,top,kind]);
+        selectedIdx=currentLayout.walls.length-1;
+        syncSidebar();draw2D();rebuild3D();return;
+      }
+      // Select existing wall
+      const hitIdx=(currentLayout.walls||[]).findIndex(([x,z,ww,ll])=>Math.abs(wx-x)<=Math.max(0.03,ww/2)&&Math.abs(wz-z)<=Math.max(0.03,ll/2));
+      if(hitIdx>=0){
+        selectedIdx=hitIdx;dragging=true;
+        dragOffset={x:wx-currentLayout.walls[hitIdx][0],z:wz-currentLayout.walls[hitIdx][1]};
+        syncSidebar();draw2D();rebuild3D();
+      }
+    });
+    c2d.addEventListener('pointermove',e=>{
+      const rect=c2d.getBoundingClientRect();
+      const wx=pxToWorld((e.clientX-rect.left)*(c2d.width/rect.width));
+      const wz=-pxToWorld((e.clientY-rect.top)*(c2d.height/rect.height));
+      $('coordReadout').textContent=`X: ${wx.toFixed(2)}m, Z: ${wz.toFixed(2)}m`;
+      if(!dragging||!currentLayout.walls[selectedIdx])return;
+      currentLayout.walls[selectedIdx][0]=+clamp(wx-dragOffset.x,-0.46,0.46).toFixed(3);
+      currentLayout.walls[selectedIdx][1]=+clamp(wz-dragOffset.z,-0.46,0.46).toFixed(3);
+      syncSidebar();draw2D();rebuild3D();
+    });
+    addEventListener('pointerup',()=>dragging=false);
+
+    // Tool buttons & property inputs
+    document.querySelectorAll('.tool-btn').forEach(btn=>btn.addEventListener('click',()=>{
+      activeTool=btn.dataset.tool;
+      document.querySelectorAll('.tool-btn').forEach(b=>b.classList.toggle('active',b===btn));
+    }));
+    $('wallKindInput').addEventListener('change',e=>{
+      const w=currentLayout.walls[selectedIdx];if(!w)return;
+      w[6]=e.target.value;
+      if(w[6]==='full'){w[4]=0;w[5]=0.20}
+      else if(w[6]==='open_top'){w[4]=0;w[5]=0.055}
+      else if(w[6]==='open_bottom'){w[4]=0.072;w[5]=0.20}
+      syncSidebar();draw2D();rebuild3D();
+    });
+    for(const [id,idx] of [['wallXInput',0],['wallZInput',1],['wallWInput',2],['wallLInput',3],['wallBotInput',4],['wallTopInput',5]]){
+      $(id).addEventListener('input',e=>{
+        const w=currentLayout.walls[selectedIdx];if(!w)return;
+        w[idx]=+Number(e.target.value).toFixed(3);
+        syncSidebar();draw2D();rebuild3D();
+      });
+    }
+    $('rotateWallBtn').addEventListener('click',()=>{
+      const w=currentLayout.walls[selectedIdx];if(!w)return;
+      const tmp=w[2];w[2]=w[3];w[3]=tmp;
+      syncSidebar();draw2D();rebuild3D();
+    });
+    const deleteSelectedWall=()=>{
+      if(!currentLayout.walls[selectedIdx])return false;
+      currentLayout.walls.splice(selectedIdx,1);
+      selectedIdx=Math.max(0,selectedIdx-1);
+      syncSidebar();draw2D();rebuild3D();
+      return true;
+    };
+    $('deleteWallBtn').addEventListener('click',deleteSelectedWall);
+    addEventListener('keydown',(e)=>{
+      if(e.key!=='Delete'&&e.key!=='Backspace')return;
+      const tag=(e.target&&e.target.tagName)||'';
+      if(/^(INPUT|SELECT|TEXTAREA)$/.test(tag))return; // sliders/selects keep native keys
+      if(!currentLayout.walls[selectedIdx])return;
+      e.preventDefault();
+      if(deleteSelectedWall())showToast(t('medToastDeleted'));
+    });
+    $('clearWallsBtn').addEventListener('click',()=>{
+      currentLayout.walls=[];selectedIdx=0;syncSidebar();draw2D();rebuild3D();
+    });
+    $('presetSelect').addEventListener('change',e=>{
+      if(PRESETS[e.target.value]){
+        currentLayout=JSON.parse(JSON.stringify(PRESETS[e.target.value]));
+        selectedIdx=0;syncSidebar();draw2D();rebuild3D();
+        showToast(t('medToastPreset')(e.target.options[e.target.selectedIndex].text));
+      }
+    });
+    $('openEasyBtn').addEventListener('click',()=>{
+      (currentLayout.walls||[]).forEach(w=>{
+        if(w[2]>w[3])w[2]=+Math.max(0.14,w[2]*0.80).toFixed(3);
+        else w[3]=+Math.max(0.14,w[3]*0.80).toFixed(3);
+        if(w[6]==='open_top')w[5]=0.050;
+        if(w[6]==='open_bottom')w[4]=0.078;
+      });
+      syncSidebar();draw2D();rebuild3D();
+      showToast(t('medToastEasy'));
+    });
+    $('applyToSimBtn').addEventListener('click',()=>{
+      try{
+        localStorage.setItem('flymind_custom_maze_v1',JSON.stringify(currentLayout));
+        showToast(t('medToastApplied'));
+      }catch(_){
+        showToast(t('medToastBlocked'));
+      }
+    });
+
+    function refreshDynamicLang(){
+      $('medGuide').innerHTML=t('medGuide');
+      $('homeLink').title=t('medHome');
+      syncSidebar(); // wall-kind labels
+    }
+    $('langSelect').addEventListener('change',(e)=>{ setLang(e.target.value); refreshDynamicLang(); });
+    initLang($('langSelect'));
+    refreshDynamicLang();
+
+    setTimeout(()=>{resize3D();syncSidebar();draw2D();rebuild3D();animate()},40);
+  })();
+  </script>
+</body>
+</html>

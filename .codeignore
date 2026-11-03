@@ -1,0 +1,19 @@
+# .codeignore — Meta-connection cache-upload filter (hackathon-copy variant).
+# Listed paths stay on this machine and are NOT cache-uploaded.
+# NOTE: submission packaging is separate; this file only filters the Meta cache upload.
+experiments/
+results/
+*.log
+credit_log.jsonl
+flight_log_*.jsonl
+results_*.json
+results_*.csv
+capture/
+logs/
+node_modules/
+docs/
+python/
+assets/
+vendor/
+.env
+.env.local
