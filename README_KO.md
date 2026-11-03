@@ -8,6 +8,8 @@
 
 **Meta Global AI Developer Hackathon 2026 프로젝트**
 
+### 라이브 데모
+
 <p align="center">
   <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Live_Demo-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="라이브 데모" /></a>
 </p>
