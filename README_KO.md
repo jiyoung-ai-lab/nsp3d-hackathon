@@ -6,11 +6,22 @@
 
 카메라가 본 환경을 뉴런에 전달하고, 뉴런의 반응으로 비행 방향을 제어합니다.
 
-Meta Global AI Developer Hackathon 2026 프로젝트
+**Meta Global AI Developer Hackathon 2026 프로젝트**
 
-**라이브 데모:** [https://jiyoung-ai-lab.github.io/nsp3d-hackathon/](https://jiyoung-ai-lab.github.io/nsp3d-hackathon/)
+<p align="center">
+  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Live_Demo-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="라이브 데모" /></a>
+</p>
 
-**기술 스택:** ![SNN](https://img.shields.io/badge/SNN-spiking-6366f1?style=flat) ![Meta Muse Spark](https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat) ![Ax](https://img.shields.io/badge/Ax-7C3AED?style=flat)<br>![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black&style=flat) ![Three.js](https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat) ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat) ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat) ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat)
+<p align="center">
+  <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
+  <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
+  <img src="https://img.shields.io/badge/Ax-7C3AED?style=flat" alt="Ax" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black&style=flat" alt="JavaScript" />
+  <img src="https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat" alt="Three.js" />
+  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat" alt="Python" />
+  <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat" alt="Playwright" />
+  <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
+</p>
 
 ## 프로젝트 소개
 
@@ -298,6 +309,8 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 현재 별도 오픈소스 라이선스를 부여하지 않았습니다.
 
 라이선스가 확정되기 전까지 All rights reserved로 관리합니다.
+
+Meta Global AI Developer Hackathon 2026 참가와 관련하여, 작성자는 공식 규정에 명시된 권리를 주최측에 부여합니다(행사 운영 및 홍보를 위한 사용·게시·수정의 royalty-free 라이선스).
 
 ## 스크린샷
 

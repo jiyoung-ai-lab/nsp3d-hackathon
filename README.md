@@ -6,11 +6,22 @@ English | [한국어](README_KO.md)
 
 The camera captures the environment and sends visual information to neurons. Neural responses are then used to control flight direction.
 
-Meta Global AI Developer Hackathon 2026 Project
+**Meta Global AI Developer Hackathon 2026 Project**
 
-**Live Demo:** [https://jiyoung-ai-lab.github.io/nsp3d-hackathon/](https://jiyoung-ai-lab.github.io/nsp3d-hackathon/)
+<p align="center">
+  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Live_Demo-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="Live Demo" /></a>
+</p>
 
-**Stack:** ![SNN](https://img.shields.io/badge/SNN-spiking-6366f1?style=flat) ![Meta Muse Spark](https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat) ![Ax](https://img.shields.io/badge/Ax-7C3AED?style=flat)<br>![JavaScript](https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black&style=flat) ![Three.js](https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat) ![Python](https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat) ![Playwright](https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat) ![Node.js](https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat)
+<p align="center">
+  <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
+  <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
+  <img src="https://img.shields.io/badge/Ax-7C3AED?style=flat" alt="Ax" />
+  <img src="https://img.shields.io/badge/JavaScript-F7DF1E?logo=javascript&logoColor=black&style=flat" alt="JavaScript" />
+  <img src="https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat" alt="Three.js" />
+  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat" alt="Python" />
+  <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat" alt="Playwright" />
+  <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
+</p>
 
 ## Project Overview
 
@@ -304,6 +315,8 @@ Public access to or viewing of the project source code does not grant a patent l
 No separate open-source license has been granted at this time.
 
 Until a license is finalized, the project is managed as All rights reserved.
+
+For the purpose of the Meta Global AI Developer Hackathon 2026, the author grants the organizers the rights described in the Official Rules (royalty-free license to use, publish, and modify for event operation and promotion).
 
 ## Screenshots
 
