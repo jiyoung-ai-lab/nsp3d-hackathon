@@ -19,7 +19,7 @@
 
 ### 2.2 Neural controllers (`src/nn/graph-network.js`)
 
-- Role split: Muse Spark (`muse-spark-1.3-contributor` = Llama 4 Maverick, CLI) for code; log analysis via Baseten `meta-models/muse-spark-open-1026` (see `META_AI_USAGE.md`).
+- Role split: Muse Spark (`muse-spark-1.3-contributor`, CLI) for code; log analysis via Baseten `meta-models/muse-spark-open-1026` (see `META_AI_USAGE.md`).
 - Meta AI deliverables below span modules/sensors/the fruit fly/UI/P0 fixes/tests — every borrowed point carries a CITATIONS # tag.
 - [MODULE A] `createMonocularConnectome` / [MODULE B] `createBinocularConnectome` fully independent
   (membrane potentials, eligibility traces, sensory projections, 4-way learned readouts `gains.monocular`/`gains.binocular` separated),
@@ -182,7 +182,7 @@
 
 | Model | Channel | Purpose | Usage (confirmed) |
 |---|---|---|---|
-| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | code generation, debugging, docs (this record §2) | 2,758 sessions (all projects) · Spark daily 10-30~11-02 ≈2,006M in / 12.2M out · 22.9k requests · 128 tool calls · 93.9% cache |
+| muse-spark-1.3-contributor | Muse Code CLI | code generation, debugging, docs (this record §2) | 2,758 sessions (all projects) · Spark daily 10-30~11-02 ≈2,006M in / 12.2M out · 22.9k requests · 128 tool calls · 93.9% cache |
 | meta-models/muse-spark-open-1026 | Baseten API | consults, cross-reviews, log narratives, probes | 58 calls · 262,708 tokens (in 79,351 / out 183,357) |
 | Meta AI | chat | competition/video quick questions | no logs (user-attested) |
 

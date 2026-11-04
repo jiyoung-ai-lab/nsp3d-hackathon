@@ -84,7 +84,7 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 Source: Meta dashboard snapshot `usage0.png` (generated 2026-11-02, kept in dev repo).
 Matches the demo video subtitle `22.9K REQUESTS · 200M TOKENS`.
 
-- Model: muse-spark-1.3-contributor (Llama 4 Maverick, user-attested), Meta AI chat Q&A
+- Model: muse-spark-1.3-contributor (user-attested), Meta AI chat Q&A
 - Requests: 22.9K · tool calls: 128 · cache hit: 93.9%
 - In 2,009M (cache included) / Out 12.2M, period 10-30~11-02
 - 7-day dashboard (10-27~11-02):

@@ -299,7 +299,7 @@ The following summarizes the Meta technologies used during the hackathon and the
 
 | Model                      | Channel       | Purpose                                       | Usage                                |
 | -------------------------- | ------------- | --------------------------------------------- | ------------------------------------ |
-| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
+| muse-spark-1.3-contributor | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
 | Meta AI                    | Chat          | Hackathon and recording inquiries             | No logs available (simple inquiries) |
 | muse-spark-open-1026       | Baseten API   | Consultation, reviews, and log analysis       | 58 calls · 262,708 tokens            |
 

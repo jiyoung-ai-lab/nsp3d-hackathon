@@ -288,7 +288,7 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 
 | 모델 | 채널 | 용도 | 사용량 |
 | ---- | ---- | ---- | ---- |
-| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
+| muse-spark-1.3-contributor | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
 | Meta AI | 챗 | 대회·촬영 문의 | 로그 없음 (간단 문의) |
 | muse-spark-open-1026 | Baseten API | 자문·리뷰·로그 분석 | 58콜 · 262,708 토큰 |
 
