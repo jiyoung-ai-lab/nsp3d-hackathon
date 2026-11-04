@@ -8,7 +8,7 @@ The camera captures the environment and sends visual information to neurons. Neu
 
 **Meta Global AI Developer Hackathon 2026 Project**
 
-<p align="center">
+<p align="left">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
   <img src="https://img.shields.io/badge/Ax-7C3AED?style=flat" alt="Ax" />
@@ -16,7 +16,6 @@ The camera captures the environment and sends visual information to neurons. Neu
   <img src="https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat" alt="Three.js" />
   <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat" alt="Python" />
   <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat" alt="Playwright" />
-  <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
 ## Demo
@@ -24,8 +23,6 @@ The camera captures the environment and sends visual information to neurons. Neu
 **▶ Watch the 3-minute video**
 
 [![NSP3D 3-minute demo](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
-
-Intro → live flight → dev process → links. A solo project by The Ground.
 
 **🚀 Run it in your browser**
 
@@ -197,8 +194,11 @@ node tests/verify-camera-pipeline.mjs
 # Flight neural circuit verification
 node tests/verify-flight-circuit.mjs
 
-# Browser regression tests (Playwright)
-node tests/verify.browser.mjs
+# Browser regression (one-time setup per machine + served root)
+npm install
+npx -y playwright@1.64.1 install --only-shell chromium
+node tests/serve.mjs --port 8000  # separate terminal, serves repo root
+NSP_PAGE=http://127.0.0.1:8000/index.html node tests/verify.browser.mjs
 ```
 
 Current unit test results: 176 PASS, 0 FAIL, 9 SKIPPED.
@@ -234,18 +234,24 @@ The following limitations have also been identified.
 ## Source Structure
 
 ```text
-nsp3d/
+nsp3d-hackathon/
 ├── index.html
 ├── src/
-│   ├── sim/
-│   ├── vision/
+│   ├── config.js
+│   ├── lab/
 │   ├── nn/
-│   └── ui/
+│   ├── sim/
+│   ├── store/
+│   ├── ui/
+│   └── vision/
 ├── vendor/connectome/
 ├── pages/
 ├── experiments/
 ├── tests/
 ├── docs/
+├── assets/
+├── python/
+├── package.json
 └── README.md
 ```
 
@@ -265,7 +271,7 @@ Main modules:
 If Python is installed, the project can be launched without a separate build process.
 
 ```bash
-cd nsp3d
+cd nsp3d-hackathon
 
 python -m http.server 8000
 ```
@@ -293,7 +299,7 @@ The following summarizes the Meta technologies used during the hackathon and the
 
 | Model                      | Channel       | Purpose                                       | Usage                                |
 | -------------------------- | ------------- | --------------------------------------------- | ------------------------------------ |
-| muse-spark-1.3-contributor | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
+| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
 | Meta AI                    | Chat          | Hackathon and recording inquiries             | No logs available (simple inquiries) |
 | muse-spark-open-1026       | Baseten API   | Consultation, reviews, and log analysis       | 58 calls · 262,708 tokens            |
 
@@ -332,6 +338,8 @@ For the purpose of the Meta Global AI Developer Hackathon 2026, the author grant
 
 ## Screenshots
 
-![Screenshot 1](assets/screenshots/screenshot1.png)
-![Screenshot 2](assets/screenshots/screenshot2.png)
-![Screenshot 3](assets/screenshots/screenshot3.png)
+<p align="center">
+  <img src="assets/screenshots/screenshot1.png" width="32%" alt="Screenshot 1" />
+  <img src="assets/screenshots/screenshot2.png" width="32%" alt="Screenshot 2" />
+  <img src="assets/screenshots/screenshot3.png" width="32%" alt="Screenshot 3" />
+</p>

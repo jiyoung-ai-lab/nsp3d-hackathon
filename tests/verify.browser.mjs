@@ -1,11 +1,10 @@
 // NSP 3D — headless browser verification (durable harness).
-// Requires: playwright + chromium headless shell installed, app served:
-//   node nsp3d/tests/serve.mjs --port 8000   (serves the repo root)
-//   cd <tmp>; npm init -y; npm i playwright; npx playwright install --only-shell chromium
-// Run: NSP_PAGE=http://127.0.0.1:8000/nsp3d/index.html node <tmp>/verify.browser.mjs
-// (copy this file next to the temp playwright install, or run with NODE_PATH).
-const PAGE = process.env.NSP_PAGE || 'http://127.0.0.1:8000/nsp3d/index.html';
-import { chromium } from 'playwright';
+// Requires: playwright-core + chromium headless shell installed, app served:
+//   npm install   (playwright-core; browser binary installed separately)
+//   node tests/serve.mjs --port 8000   (serves the repo root)
+// Run: NSP_PAGE=http://127.0.0.1:8000/index.html node tests/verify.browser.mjs
+const PAGE = process.env.NSP_PAGE || 'http://127.0.0.1:8000/index.html';
+import { chromium } from 'playwright-core';
 import fs from 'node:fs';
 import path from 'node:path';
 const DIR = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, '$1'));

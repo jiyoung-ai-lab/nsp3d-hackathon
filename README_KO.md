@@ -8,7 +8,7 @@
 
 **Meta Global AI Developer Hackathon 2026 프로젝트**
 
-<p align="center">
+<p align="left">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
   <img src="https://img.shields.io/badge/Ax-7C3AED?style=flat" alt="Ax" />
@@ -16,7 +16,6 @@
   <img src="https://img.shields.io/badge/Three.js-000000?logo=threedotjs&logoColor=white&style=flat" alt="Three.js" />
   <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=white&style=flat" alt="Python" />
   <img src="https://img.shields.io/badge/Playwright-2EAD33?logo=playwright&logoColor=white&style=flat" alt="Playwright" />
-  <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
 ## 데모
@@ -24,8 +23,6 @@
 **▶ 3분 영상 보기**
 
 [![NSP3D 3분 데모](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
-
-인트로 → 실시간 비행 → 개발 과정 → 링크. 1인 솔로 프로젝트 (The Ground).
 
 **🚀 브라우저에서 바로 실행**
 
@@ -197,8 +194,11 @@ node tests/verify-camera-pipeline.mjs
 # 비행 신경회로 검증
 node tests/verify-flight-circuit.mjs
 
-# 브라우저 회귀 테스트 (Playwright)
-node tests/verify.browser.mjs
+# 브라우저 회귀 테스트 (머신당 1회 설정 + 루트 서빙)
+npm install
+npx -y playwright@1.64.1 install --only-shell chromium
+node tests/serve.mjs --port 8000  # 별도 터미널, 리포 루트 서빙
+NSP_PAGE=http://127.0.0.1:8000/index.html node tests/verify.browser.mjs
 ```
 
 현재 단위 테스트 결과: 176 PASS, 0 FAIL, 9 SKIPPED.
@@ -223,18 +223,24 @@ node tests/verify.browser.mjs
 ## 소스 구조
 
 ```text
-nsp3d/
+nsp3d-hackathon/
 ├── index.html
 ├── src/
-│   ├── sim/
-│   ├── vision/
+│   ├── config.js
+│   ├── lab/
 │   ├── nn/
-│   └── ui/
+│   ├── sim/
+│   ├── store/
+│   ├── ui/
+│   └── vision/
 ├── vendor/connectome/
 ├── pages/
 ├── experiments/
 ├── tests/
 ├── docs/
+├── assets/
+├── python/
+├── package.json
 └── README.md
 ```
 
@@ -254,7 +260,7 @@ nsp3d/
 Python이 설치되어 있다면 별도 빌드 과정 없이 실행할 수 있습니다.
 
 ```bash
-cd nsp3d
+cd nsp3d-hackathon
 python -m http.server 8000
 ```
 
@@ -282,7 +288,7 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 
 | 모델 | 채널 | 용도 | 사용량 |
 | ---- | ---- | ---- | ---- |
-| muse-spark-1.3-contributor | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
+| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
 | Meta AI | 챗 | 대회·촬영 문의 | 로그 없음 (간단 문의) |
 | muse-spark-open-1026 | Baseten API | 자문·리뷰·로그 분석 | 58콜 · 262,708 토큰 |
 
@@ -326,6 +332,8 @@ Meta Global AI Developer Hackathon 2026 참가와 관련하여, 작성자는 공
 
 ## 스크린샷
 
-![스크린샷 1](assets/screenshots/screenshot1.png)
-![스크린샷 2](assets/screenshots/screenshot2.png)
-![스크린샷 3](assets/screenshots/screenshot3.png)
+<p align="center">
+  <img src="assets/screenshots/screenshot1.png" width="32%" alt="스크린샷 1" />
+  <img src="assets/screenshots/screenshot2.png" width="32%" alt="스크린샷 2" />
+  <img src="assets/screenshots/screenshot3.png" width="32%" alt="스크린샷 3" />
+</p>

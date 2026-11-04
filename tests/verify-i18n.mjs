@@ -3,7 +3,7 @@
 // Guards the KO/EN toggle: every key must exist in both languages, and every
 // data-i18n / t('...') reference in live pages must resolve to a real key
 // (t() renders the raw key name when both languages miss it).
-// Run: node nsp3d/tests/verify-i18n.mjs
+// Run: node tests/verify-i18n.mjs
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';

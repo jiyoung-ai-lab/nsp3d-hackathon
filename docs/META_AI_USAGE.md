@@ -7,24 +7,24 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 
 ## What it is used for
 
-1. Experiment-log narratives — `nsp3d/python/analyze.py --llm`
+1. Experiment-log narratives — `python/analyze.py --llm`
    Sends locally computed stats JSON only (never raw logs).
    1 call per analysis → verdict + correlations + failure causes + 1 tuning tip.
    Token-gated (`--token-limit`, default 5M); every call appended to
-   `nsp3d/python/credit_log.jsonl` (local-only, git-ignored).
-2. Connection probe — `nsp3d/python/ba/probe_api.py`
+   `python/credit_log.jsonl` (local-only, git-ignored).
+2. Connection probe — `python/ba/probe_api.py`
    Key check + rate-limit header read. Same credit logging.
 3. Coding assistant — Muse Code (agentic CLI) for the K-fix development
    documented in `docs/CHANGELOG.md`.
-4. Fix consults — `nsp3d/python/ba/query_fix.py PROMPT --out ANSWER`
+4. Fix consults — `python/ba/query_fix.py PROMPT --out ANSWER`
    One-shot engineering questions, usually with short code excerpts.
    Whole-file sends are the exception and are noted per record (v5 review).
    Same credit logging. Answers are advisory; applied only after human review.
    Lesson 2026-10-30: the model is reasoning-heavy — `max_tokens=2000`
    truncates with empty content; use 6000 for fix consults.
-5. Ax study loop — `nsp3d/python/ax_loop.py` (`ax-platform` 1.3.1, local CPU).
+5. Ax study loop — `python/ax_loop.py` (`ax-platform` 1.3.1, local CPU).
    Multi-objective (success↑ collisions↓) over configs; browser trials via
-   `nsp3d/python/trial.cjs`. No model calls, no tokens. First study `multi0`
+   `python/trial.cjs`. No model calls, no tokens. First study `multi0`
    (exp_multi, 12 trials) finished 2026-10-31 with 0 failures.
 6. Meta AI chat — competition questions, video-shooting how-to, other quick
    questions (user-attested 2026-11-02, no logs).
@@ -40,7 +40,7 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 - CONFIRMED: at CLI session start, project files are cache-uploaded to
   the Meta connection for context. Exclusions are enforced by filter,
   not by convention.
-- Filter: `nsp3d/.codeignore` (local dev loop only; submission packaging
+- Filter: `.codeignore` (local dev loop only; submission packaging
   is separate). Listed paths stay on this machine and are NOT uploaded:
   `experiments/`, `results/`, `*.log`, `credit_log.jsonl`,
   `flight_log_*.jsonl`, `results_*`, `capture/`, `node_modules/`,
@@ -75,8 +75,8 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 
 ## Evidence (kept locally, NOT in this repo)
 
-- `nsp3d/python/credit_log.jsonl` — per-call token usage + rate headers.
-- `nsp3d/experiments/results/*` — batch logs/analysis (git-ignored by policy).
+- `python/credit_log.jsonl` — per-call token usage + rate headers.
+- `experiments/results/*` — batch logs/analysis (git-ignored by policy).
 - `.env` holds `BASETEN_META_HACKATHON_API_KEY` (git-ignored; see `.env.example`).
 
 ## Muse Spark dashboard (video basis, separate from Open)
@@ -84,7 +84,7 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 Source: Meta dashboard snapshot `usage0.png` (generated 2026-11-02, kept in dev repo).
 Matches the demo video subtitle `22.9K REQUESTS · 200M TOKENS`.
 
-- Model: muse-spark-1.3-contributor (user-attested), Meta AI chat Q&A
+- Model: muse-spark-1.3-contributor (Llama 4 Maverick, user-attested), Meta AI chat Q&A
 - Requests: 22.9K · tool calls: 128 · cache hit: 93.9%
 - In 2,009M (cache included) / Out 12.2M, period 10-30~11-02
 - 7-day dashboard (10-27~11-02):
@@ -100,7 +100,7 @@ Matches the demo video subtitle `22.9K REQUESTS · 200M TOKENS`.
 
 ## Call log (Open · Baseten API)
 
-Source: `nsp3d/python/credit_log.jsonl` (per-call API `usage`, in/out split).
+Source: `python/credit_log.jsonl` (per-call API `usage`, in/out split).
 Dates are KST.
 
 Daily totals (in / out / total):

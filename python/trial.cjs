@@ -1,5 +1,5 @@
 // NSP3D single-trial headless runner (Ax loop worker). CommonJS (.cjs) because
-// nsp3d/package.json is type:module.
+// package.json is type:module.
 // Usage: node trial.cjs --config cfg01 --runs 3 --seed 20261031 [--learning 0]
 //        [--sens 0.8] [--cruise 0.12] [--maxt 60] [--render off] [--timeout 1800000]
 // Base URL: NSP_BASE_URL env, default http://127.0.0.1:8000/pages/experiment.html

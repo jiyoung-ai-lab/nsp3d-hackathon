@@ -2,7 +2,7 @@
 // NSP 3D recording-helper check (ESM, zero hardcoded paths).
 // Guards the shared filename/duration-cap contract used by the main sim and
 // multilab recorders: source + local datetime in every filename, 180s cap.
-// Run: node nsp3d/tests/verify-rec.mjs
+// Run: node tests/verify-rec.mjs
 import assert from 'node:assert/strict';
 import { recFilename, recStamp, recElapsed, recCapped, REC_MAX_S } from '../src/ui/rec-filename.js';
 

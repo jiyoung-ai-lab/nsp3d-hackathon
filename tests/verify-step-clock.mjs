@@ -3,7 +3,7 @@
 // Guards the math the multilab/main speed selectors rely on: fixed-h
 // integration, the per-frame step cap, and drop accounting when a frame
 // budget (frameDt x speed) exceeds the cap.
-// Run: node nsp3d/tests/verify-step-clock.mjs
+// Run: node tests/verify-step-clock.mjs
 import assert from 'node:assert/strict';
 import { consumeSteps, SIM_STEP_H, SIM_MAX_STEPS } from '../src/sim/step-clock.js';
 

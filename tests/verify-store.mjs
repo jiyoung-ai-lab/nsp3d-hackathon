@@ -3,7 +3,7 @@
 // The OPFS/IndexedDB calls need a browser, so node covers what it can: the
 // module must import without touching browser globals, and the pure path/id
 // helpers must stay stable (the report page and both recorders rely on them).
-// Run: node nsp3d/tests/verify-store.mjs
+// Run: node tests/verify-store.mjs
 import assert from 'node:assert/strict';
 import { opfsPathFor, artifactId } from '../src/store/nsp-store.js';
 

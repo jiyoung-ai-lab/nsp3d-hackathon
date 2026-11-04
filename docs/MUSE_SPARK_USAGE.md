@@ -3,7 +3,7 @@
 ## 1. Purpose and scope
 
 - Purpose of this record: document what Meta AI built, assisted, or reviewed in this project, and where the evidence lives (files/specs/tests).
-- Method: read-only investigation. Opened `nsp3d/docs/*.md`, the clean-room reference `reference/functional_specification_for_meta.md`, core sources (`src/vision`, `src/nn`, `src/sim`, `src/ui`), `index.html`, `pages/*.html`, and all tests; no implementation edits.
+- Method: read-only investigation. Opened `docs/*.md`, the clean-room reference `reference/functional_specification_for_meta.md`, core sources (`src/vision`, `src/nn`, `src/sim`, `src/ui`), `index.html`, `pages/*.html`, and all tests; no implementation edits.
 - Related: `CITATIONS.md` (#1–#51 + §9 #54–#58), `NSP_3D_MERGED_SPEC_v2.md`, `PRE_HACKATHON_SOURCE_REVIEW.md`.
 - Claim basis notation: each statement below carries the evidence file in code ticks. Items not verified are explicitly marked unknown in §4.
 
@@ -19,7 +19,7 @@
 
 ### 2.2 Neural controllers (`src/nn/graph-network.js`)
 
-- Role split: Muse Spark (`muse-spark-1.3-contributor`, CLI) for code; log analysis via Baseten `meta-models/muse-spark-open-1026` (see `META_AI_USAGE.md`).
+- Role split: Muse Spark (`muse-spark-1.3-contributor` = Llama 4 Maverick, CLI) for code; log analysis via Baseten `meta-models/muse-spark-open-1026` (see `META_AI_USAGE.md`).
 - Meta AI deliverables below span modules/sensors/the fruit fly/UI/P0 fixes/tests — every borrowed point carries a CITATIONS # tag.
 - [MODULE A] `createMonocularConnectome` / [MODULE B] `createBinocularConnectome` fully independent
   (membrane potentials, eligibility traces, sensory projections, 4-way learned readouts `gains.monocular`/`gains.binocular` separated),
@@ -50,7 +50,7 @@
 ### 2.4 UI / pages (`index.html`, `src/ui/`, `pages/`)
 
 - `index.html` (lang=ko): importmap `three@0.160.0` pinned (CITATIONS #3), mono/bino + 4-sensor tabs,
-  always-on fly POV preview (`visionFeed`), control/experiment anchors — `nsp3d/index.html`
+  always-on fly POV preview (`visionFeed`), control/experiment anchors — `index.html`
 - Main app: EyeRig wiring, `runStep` (sense→rule/network→movement), 4 views (follow/overview/closeup/top)
   + zoom/drag/pinch, 3 lightings (default/studio/neon), benchmark runner, trail/shadow/HUD —
   `src/ui/app.js` (600+ lines, pipeline comments stated)
@@ -58,9 +58,9 @@
 - Procedural fruit fly (striped body, heartWings, compound eyes, impact FX, `wingScale` injected, OBJLoader removed) —
   `src/ui/hand-drawn-bee.js` (CITATIONS #6·#13·#34)
 - 4-sensor parallel runs + A* baseline benchmark lab (shared modules reused, staggered POV capture) —
-  `nsp3d/pages/path-planner.html` (CITATIONS #36)
+  `pages/path-planner.html` (CITATIONS #36)
 - Maze design studio (reference-format IO) —
-  `nsp3d/pages/maze-editor.html` (CITATIONS #37)
+  `pages/maze-editor.html` (CITATIONS #37)
 
 ### 2.5 Tests / docs (`tests/`, `docs/`)
 
@@ -115,17 +115,17 @@
 
 ## 5. Evidence file list (relative paths)
 
-- `nsp3d/docs/CITATIONS.md`, `nsp3d/docs/NSP_3D_MERGED_SPEC_v2.md`,
-  `nsp3d/docs/PRE_HACKATHON_SOURCE_REVIEW.md`
+- `docs/CITATIONS.md`, `docs/NSP_3D_MERGED_SPEC_v2.md`,
+  `docs/PRE_HACKATHON_SOURCE_REVIEW.md`
 - `reference/functional_specification_for_meta.md` (author's local set, outside the repo)
-- `nsp3d/src/vision/camera-vision.js`, `nsp3d/src/vision/alif-surrogate-plugin.js`
-- `nsp3d/src/nn/graph-network.js`, `nsp3d/src/config.js`
-- `nsp3d/src/sim/sim-core.js`, `nsp3d/src/sim/camera-controller.js`,
-  `nsp3d/src/sim/flight-physics.js`, `nsp3d/src/sim/maze-layouts.js`
-- `nsp3d/src/ui/app.js`, `nsp3d/src/ui/i18n.js`, `nsp3d/src/ui/hand-drawn-bee.js`
-- `nsp3d/index.html`, `nsp3d/pages/path-planner.html`, `nsp3d/pages/maze-editor.html`
-- `nsp3d/tests/run.mjs`, `nsp3d/tests/verify-camera-pipeline.mjs`,
-  `nsp3d/tests/verify-flight-circuit.mjs`, `nsp3d/tests/verify.browser.mjs`
+- `src/vision/camera-vision.js`, `src/vision/alif-surrogate-plugin.js`
+- `src/nn/graph-network.js`, `src/config.js`
+- `src/sim/sim-core.js`, `src/sim/camera-controller.js`,
+  `src/sim/flight-physics.js`, `src/sim/maze-layouts.js`
+- `src/ui/app.js`, `src/ui/i18n.js`, `src/ui/hand-drawn-bee.js`
+- `index.html`, `pages/path-planner.html`, `pages/maze-editor.html`
+- `tests/run.mjs`, `tests/verify-camera-pipeline.mjs`,
+  `tests/verify-flight-circuit.mjs`, `tests/verify.browser.mjs`
 
 ## 6. Verification/improvement history (2026-10-28, Muse Spark assisted)
 
@@ -182,7 +182,7 @@
 
 | Model | Channel | Purpose | Usage (confirmed) |
 |---|---|---|---|
-| muse-spark-1.3-contributor | Muse Code CLI | code generation, debugging, docs (this record §2) | 2,758 sessions (all projects) · Spark daily 10-30~11-02 ≈2,006M in / 12.2M out · 22.9k requests · 128 tool calls · 93.9% cache |
+| muse-spark-1.3-contributor (Llama 4 Maverick) | Muse Code CLI | code generation, debugging, docs (this record §2) | 2,758 sessions (all projects) · Spark daily 10-30~11-02 ≈2,006M in / 12.2M out · 22.9k requests · 128 tool calls · 93.9% cache |
 | meta-models/muse-spark-open-1026 | Baseten API | consults, cross-reviews, log narratives, probes | 58 calls · 262,708 tokens (in 79,351 / out 183,357) |
 | Meta AI | chat | competition/video quick questions | no logs (user-attested) |
 

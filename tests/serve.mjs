@@ -14,7 +14,7 @@ const flag = (name) => {
   const i = args.indexOf(name);
   return i >= 0 && i + 1 < args.length ? args[i + 1] : null;
 };
-const root = path.resolve(here, flag('--root') || '..', '..');
+const root = path.resolve(here, flag('--root') || '..');
 const port = Number(flag('--port') || process.env.NSP_PORT || 0);
 
 const MIME = {
