@@ -8,12 +8,6 @@ The camera captures the environment and sends visual information to neurons. Neu
 
 **Meta Global AI Developer Hackathon 2026 Project**
 
-### Live Demo
-
-<p align="center">
-  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Live_Demo-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="Live Demo" /></a>
-</p>
-
 <p align="center">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
@@ -25,11 +19,21 @@ The camera captures the environment and sends visual information to neurons. Neu
   <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
-## Demo Video
+## Demo
+
+**▶ Watch the 3-minute video**
 
 [![NSP3D 3-minute demo](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
 
-3-minute demo video: intro → live flight → dev process → links. A solo project by The Ground.
+Intro → live flight → dev process → links. A solo project by The Ground.
+
+**🚀 Run it in your browser**
+
+<p align="left">
+  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Try_It_Live-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="Try it live" /></a>
+</p>
+
+No install needed — fly it yourself.
 
 ## Project Overview
 

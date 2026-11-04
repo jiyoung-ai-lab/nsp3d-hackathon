@@ -8,12 +8,6 @@
 
 **Meta Global AI Developer Hackathon 2026 프로젝트**
 
-### 라이브 데모
-
-<p align="center">
-  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Live_Demo-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="라이브 데모" /></a>
-</p>
-
 <p align="center">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
@@ -25,11 +19,21 @@
   <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
-## 데모 영상
+## 데모
+
+**▶ 3분 영상 보기**
 
 [![NSP3D 3분 데모](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
 
-3분 데모 영상: 인트로 → 실시간 비행 → 개발 과정 → 링크. 1인 솔로 프로젝트 (The Ground).
+인트로 → 실시간 비행 → 개발 과정 → 링크. 1인 솔로 프로젝트 (The Ground).
+
+**🚀 브라우저에서 바로 실행**
+
+<p align="left">
+  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Try_It_Live-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="바로 실행" /></a>
+</p>
+
+설치 없이 직접 날려보세요.
 
 ## 프로젝트 소개
 
