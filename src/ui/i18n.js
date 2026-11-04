@@ -458,7 +458,7 @@ export const STRINGS = {
   },
 };
 
-let lang = 'ko';
+let lang = 'en';
 export function t(key) {
   return (STRINGS[lang] && STRINGS[lang][key]) || STRINGS.en[key] || key;
 }
@@ -476,8 +476,8 @@ export function setLang(v, root = document) {
   return lang;
 }
 export function initLang(selectEl, root = document) {
-  let v = 'ko';
-  try { v = localStorage.getItem(STORE_KEYS.lang) || 'ko'; } catch (e) { /* noop */ }
+  let v = 'en';
+  try { v = localStorage.getItem(STORE_KEYS.lang) || 'en'; } catch (e) { /* noop */ }
   lang = v === 'en' ? 'en' : 'ko';
   if (selectEl) selectEl.value = lang;
   try { document.documentElement.lang = lang; } catch (e) { /* noop */ }
