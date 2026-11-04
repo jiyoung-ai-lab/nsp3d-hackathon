@@ -24,13 +24,7 @@ The camera captures the environment and sends visual information to neurons. Neu
 
 [![NSP3D 3-minute demo](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
 
-**🚀 Run it in your browser**
-
-<p align="left">
-  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Try_It_Live-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="Try it live" /></a>
-</p>
-
-No install needed — fly it yourself.
+🚀 [Run it in your browser](https://jiyoung-ai-lab.github.io/nsp3d-hackathon/) — no install needed, fly it yourself.
 
 ## Project Overview
 

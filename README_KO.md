@@ -24,13 +24,7 @@
 
 [![NSP3D 3분 데모](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
 
-**🚀 브라우저에서 바로 실행**
-
-<p align="left">
-  <a href="https://jiyoung-ai-lab.github.io/nsp3d-hackathon/"><img src="https://img.shields.io/badge/Try_It_Live-0A66FF?style=for-the-badge&logo=rocket&logoColor=white" alt="바로 실행" /></a>
-</p>
-
-설치 없이 직접 날려보세요.
+🚀 [브라우저에서 바로 실행](https://jiyoung-ai-lab.github.io/nsp3d-hackathon/) — 설치 없이 직접 날려보세요.
 
 ## 프로젝트 소개
 
