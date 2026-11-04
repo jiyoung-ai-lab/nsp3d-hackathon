@@ -25,6 +25,12 @@
   <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
+## 데모 영상
+
+[![NSP3D 3분 데모](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
+
+3분 데모 영상: 인트로 → 실시간 비행 → 개발 과정 → 링크. 1인 솔로 프로젝트 (The Ground).
+
 ## 프로젝트 소개
 
 가상 3D 환경에서 시각 정보가 신경회로를 거쳐 비행 행동으로 이어지는 과정을 탐구합니다.

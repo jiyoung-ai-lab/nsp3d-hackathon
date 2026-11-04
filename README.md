@@ -25,6 +25,12 @@ The camera captures the environment and sends visual information to neurons. Neu
   <img src="https://img.shields.io/badge/Node.js-339933?logo=nodedotjs&logoColor=white&style=flat" alt="Node.js" />
 </p>
 
+## Demo Video
+
+[![NSP3D 3-minute demo](https://img.youtube.com/vi/jirq_4vpjL0/hqdefault.jpg)](https://youtu.be/jirq_4vpjL0)
+
+3-minute demo video: intro → live flight → dev process → links. A solo project by The Ground.
+
 ## Project Overview
 
 Explore how neural circuits translate visual input into flight behavior in a 3D environment.

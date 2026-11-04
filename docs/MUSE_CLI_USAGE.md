@@ -51,6 +51,12 @@
     2 BGM entries in credit_log (per-genre pick + retry).
 10. Experiment management screens: `pages/multilab.html` (multilab batch experiments),
     `pages/ax-compare.html` (AX before/after), `index.html` experiment anchors.
+11. Custom neuron-cloud render (11-03): `video_resources/scripts/render_neuron_hook.py`
+    (1,854-neuron schematic layout rotation, 210 frames + `final/work/nhook/build.log`),
+    dropped from final after P1 1b replaced it with a text card (trace kept).
+12. P1 shot4 drone shoot (11-03): `video_resources/scripts/shoot_s4.cjs`
+    (maze2 Smart Drone + panel, binocular fusion 20s → reshot monocular fog 20s),
+    `clips/s4_follow_mono_fog_20s.mp4` 2-12s used.
 
 ## 3. Usage evidence and limits
 

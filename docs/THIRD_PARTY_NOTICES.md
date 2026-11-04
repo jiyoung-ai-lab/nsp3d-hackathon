@@ -44,3 +44,9 @@
 
 ## Libraries
 - Three.js r160 — MIT License (https://threejs.org), loaded via CDN with pinned version
+
+## Demo video music (CC BY 4.0)
+- Track: "Meanwhile" by Scott Buckley (https://www.scottbuckley.com.au/library/meanwhile/)
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0); commercial use allowed with credit
+- Credit (shown at end of demo video): "'Meanwhile' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au"
+- Note: audio files live in the dev repo (`video_resources/final/meanwhile.mp3`, `meanwhile_clean.mp3` with 2.27s head silence trimmed); this repo carries only the credit, not the files
