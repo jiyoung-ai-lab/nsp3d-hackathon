@@ -81,18 +81,24 @@ No other model is called by code in this repo (CLI/chat models are developer-sid
 
 ## Muse Spark dashboard (video basis, separate from Open)
 
-Source: Meta dashboard snapshot `usage0.png` (generated 2026-11-02, kept in dev repo).
+Source: Meta dashboard snapshots (originals kept in dev repo).
 Matches the demo video subtitle `22.9K REQUESTS · 200M TOKENS`.
 
 - Model: muse-spark-1.3-contributor (user-attested), Meta AI chat Q&A
+
+### 4-day snapshot (10-30~11-02, `usage0.png`)
+
 - Requests: 22.9K · tool calls: 128 · cache hit: 93.9%
-- In 2,009M (cache included) / Out 12.2M, period 10-30~11-02
-- 7-day dashboard (10-27~11-02):
-  In 3,135.1M (93.9% cached) / Out 19.4M / 22.9k requests
+- In 2,009M (cache included) / Out 12.2M
+
+![Spark vs Open usage composite](assets/usage0.png)
+
+### 7-day snapshot (10-27~11-02, `meta_ai_usage_7day.png`)
+
+- In 3,135.1M (93.9% cached) / Out 19.4M / 22.9k requests
 
 ![7-day Meta dashboard](assets/meta_ai_usage_7day.png)
 
-![Spark vs Open usage composite](assets/usage0.png)
 - Video figure 200M tokens = cache-excluded basis: 3,135.1M x 6.1% = 191M in
   + 19.4M out = 211M ~= 200M (user-confirmed 2026-11-04)
 - Scope: CLI session logs cover all projects; NSP_3D-only split impossible
