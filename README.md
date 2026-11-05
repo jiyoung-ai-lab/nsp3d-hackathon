@@ -293,9 +293,9 @@ The following summarizes the Meta technologies used during the hackathon and the
 
 | Model                      | Channel       | Purpose                                       | Usage                                |
 | -------------------------- | ------------- | --------------------------------------------- | ------------------------------------ |
-| muse-spark-1.3-contributor | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
+| Muse Spark (muse-spark-1.3-contributor, Muse Code CLI) | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
 | Meta AI                    | Chat          | Hackathon and recording inquiries             | No logs available (simple inquiries) |
-| muse-spark-open-1026       | Baseten API   | Consultation, reviews, and log analysis       | 58 calls · 262,708 tokens            |
+| Muse Spark Open (muse-spark-open-1026, Baseten API) | Baseten API | Consultation, reviews, and log analysis | 58 calls · 262,708 tokens |
 
 * **CLI (2026-10-27 to 2026-11-02, dashboard):** In 2,009M · Out 12.2M · 22.9k requests · 128 tool calls · 93.9% cache hit rate
 * **API (2026-10-29 to 2026-11-02, complete `credit_log`):** In 79,351 · Out 183,357 — 33 consultation/review tasks, 18 planning/documentation tasks, 1 narrative task, and 6 probes

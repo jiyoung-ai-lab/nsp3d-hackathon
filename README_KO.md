@@ -282,9 +282,9 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 
 | 모델 | 채널 | 용도 | 사용량 |
 | ---- | ---- | ---- | ---- |
-| muse-spark-1.3-contributor | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
+| Muse Spark (muse-spark-1.3-contributor, Muse Code CLI) | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
 | Meta AI | 챗 | 대회·촬영 문의 | 로그 없음 (간단 문의) |
-| muse-spark-open-1026 | Baseten API | 자문·리뷰·로그 분석 | 58콜 · 262,708 토큰 |
+| Muse Spark Open (muse-spark-open-1026, Baseten API) | Baseten API | 자문·리뷰·로그 분석 | 58콜 · 262,708 토큰 |
 
 * CLI(2026-10-27~11-02, 대시보드): In 2,009M · Out 12.2M · 요청 22.9k · 툴콜 128 · 캐시 적중 93.9%
 * API(2026-10-29~11-02, credit_log 전수): In 79,351 · Out 183,357 — 자문·리뷰 33건, 계획·문서 18건, 내러티브 1건, 프로브 6건
