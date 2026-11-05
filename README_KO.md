@@ -8,6 +8,8 @@
 
 **Meta Global AI Developer Hackathon 2026 프로젝트**
 
+트랙: Indie Developer Track · 도전 주제: Push the Frontier
+
 <p align="left">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
@@ -37,7 +39,7 @@ NSP3D는 초파리의 신경 연결 데이터(Male CNS v1.0)를 활용해 3D 가
 사용자는 3D 미로에서 비행실험체가 장애물을 인식하고, 신경회로를 통해 방향을 결정하는 과정을 관찰할 수 있습니다.
 
 * **신경회로:** 1,854개 뉴런과 3,305개 방향성 연결로 구성된 Male CNS 기반 부분 커넥톰 그래프
-* **비행 환경:** 1m × 1m × 0.20m 챔버와 10종의 미로 레이아웃
+* **비행 환경:** 1m × 1m × 0.20m 챔버와 11종의 미로 레이아웃
 * **시각 입력:** 단안·양안 카메라와 Fog, Depth, Optical Flow, Sensor Fusion
 * **신경 모델:** 기본 LIF, 선택형 ALIF 대리 모델
 * **실험:** 브라우저 기반 배치 실행과 결과 비교
@@ -205,7 +207,7 @@ NSP_PAGE=http://127.0.0.1:8000/index.html node tests/verify.browser.mjs
 * **양안 시야 편향:** 양안 구성에서 정면 위협도가 단안보다 높게 측정되는 경향이 있습니다.
 * **학습 미검증:** 보고된 모든 배치 실험은 학습 OFF 상태입니다.
 * **뉴런 활성 희소성:** ALIF 순항 비행에서 발화 임계값을 넘는 뉴런은 약 2~3%입니다.
-* **비행 실험 범위:** 총 9종의 미로에서 비행 테스트를 수행했습니다. AX 적용 전후 비교는 이 중 이전 테스트와 겹치는 3종(미로 2·6·7)의 미로에서 진행했습니다.
+* **비행 실험 범위:** 내장 11종 중 9종의 미로에서 비행 테스트를 수행했습니다(개방형·S자 제외). 편집 가능한 커스텀 1종도 별도로 제공합니다. AX 적용 전후 비교는 이 중 이전 테스트와 겹치는 3종(미로 2·6·7)의 미로에서 진행했습니다.
 * **환경 검증 범위:** 실험 환경과 미로 유형이 제한적이며, 다양한 환경 변화에 따른 체계적인 비교 분석은 개발 기간의 제약으로 충분히 수행하지 못했습니다. 다른 미로 구조와 장애물 배치, 환경 조건에 대한 추가 검증이 필요합니다.
 * **변경분 재검토:** 현재 결과는 고정된 실험실 구성에서만 유효합니다. 챔버 크기·실험체 크기·해상도·파라미터 등 환경이 바뀌면 기존 결과를 그대로 적용할 수 없으며, 바뀐 부분은 별도 검토와 재실험이 필요합니다.
 * **Depth A/B 비교:** 미로 2·6·11의 단안·양안 조건으로 구성된 6개 실험 셀에서 Depth 포함 구성과 제외 구성을 동일 조건·동일 시드로 비교했습니다. 종합 비교 결과 Depth 제외 구성이 4개 셀에서 우세했고, 2개 셀에서는 열세였습니다. 특히 미로 2 양안 조건에서는 Depth 포함 구성이 성공률과 충돌 횟수 측면에서 더 나은 결과를 보였습니다. 따라서 Depth 제외가 모든 환경에서 더 우수하다고 일반화할 수 없습니다.
@@ -213,6 +215,12 @@ NSP_PAGE=http://127.0.0.1:8000/index.html node tests/verify.browser.mjs
 * **표본 수:** 예를 들어 12회 중 12회 성공은 해당 조건의 결과이지, 100% 성공을 보장하지 않습니다.
 * **워커 간 비교:** m16 실험은 센서 조건과 실행 머신이 교락되어 있어 센서 성능 비교 근거로 사용하지 않습니다.
 * **뉴런 발화 해석:** LIF의 발화 포화와 ALIF의 적응 반응은 관찰된 모델 동작을 설명하는 가설적 해석입니다. 성능 차이의 직접적인 원인으로 확정하려면 뉴런별 발화 기록과 추가 분석이 필요합니다.
+
+## 향후 과제
+
+* **공간 기억(Mushroom Body):** 프로토타입 모듈은 있으나 비행 루프에 미배선. 배선·검증이 다음 단계.
+* **온라인 학습(3-Factor R-STDP):** 학습 경로는 연결되어 있으나 보고된 실험은 전부 학습 OFF. 활성화·효과 측정이 다음 단계.
+* **S자·비가시 골 탐색:** 현재 반응형 제어기로 실패. 공간 기억이 확장 경로.
 
 ## 소스 구조
 
@@ -285,6 +293,7 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 | Muse Spark (muse-spark-1.3-contributor, Muse Code CLI) | Muse Code CLI | 코드 생성·디버그·문서 | 2,758 세션 (전 프로젝트) |
 | Meta AI | 챗 | 대회·촬영 문의 | 로그 없음 (간단 문의) |
 | Muse Spark Open (muse-spark-open-1026, Baseten API) | Baseten API | 자문·리뷰·로그 분석 | 58콜 · 262,708 토큰 |
+| Ax (ax-platform 1.3.1, 로컬 Python) | 로컬 배치 | 모수 최적화 스터디·전후 비교 | ax_loop.py + ax-compare 페이지, API 토큰 0 |
 
 * CLI(2026-10-27~11-02, 대시보드): In 2,009M · Out 12.2M · 요청 22.9k · 툴콜 128 · 캐시 적중 93.9%
 * API(2026-10-29~11-02, credit_log 전수): In 79,351 · Out 183,357 — 자문·리뷰 33건, 계획·문서 18건, 내러티브 1건, 프로브 6건
@@ -310,7 +319,7 @@ AI 도구의 사용 내역과 프로젝트 내 역할은 다음 문서에 기록
 
 ## 특허
 
-2026년 11월 기준, 한국 특허 **출원 준비 단계**입니다.
+2026년 11월 기준, 한국 특허 **출원 접수 완료** 상태입니다.
 
 대상 기술은 양안 시각 정보 처리와 Male CNS 기반 부분 커넥톰 신경회로를 이용한 3D 비행 제어 방법입니다.
 
@@ -327,7 +336,7 @@ Meta Global AI Developer Hackathon 2026 참가와 관련하여, 작성자는 공
 ## 스크린샷
 
 <p align="center">
-  <img src="assets/screenshots/screenshot1.png" width="32%" alt="스크린샷 1" />
-  <img src="assets/screenshots/screenshot2.png" width="32%" alt="스크린샷 2" />
-  <img src="assets/screenshots/screenshot3.png" width="32%" alt="스크린샷 3" />
+  <img src="assets/screenshots/screenshot1.png" width="32%" alt="3D 비행 UI" />
+  <img src="assets/screenshots/screenshot2.png" width="32%" alt="4종 센서뷰" />
+  <img src="assets/screenshots/screenshot3.png" width="32%" alt="멀티랩 배치 실험" />
 </p>

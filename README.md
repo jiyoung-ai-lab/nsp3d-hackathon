@@ -8,6 +8,8 @@ The camera captures the environment and sends visual information to neurons. Neu
 
 **Meta Global AI Developer Hackathon 2026 Project**
 
+Track: Indie Developer Track · Challenge theme: Push the Frontier
+
 <p align="left">
   <img src="https://img.shields.io/badge/SNN-spiking-6366f1?style=flat" alt="SNN" />
   <img src="https://img.shields.io/badge/Meta_Muse_Spark-0064e0?style=flat" alt="Meta Muse Spark" />
@@ -37,7 +39,7 @@ NSP3D is a browser-based simulator for experimenting with flight control in a 3D
 Users can observe how a simulated flying agent perceives obstacles in a 3D maze and determines its direction through neural circuits.
 
 * **Neural Circuit:** A partial connectome graph based on Male CNS, consisting of 1,854 neurons and 3,305 directed connections.
-* **Flight Environment:** A 1m × 1m × 0.20m chamber with 10 maze layouts.
+* **Flight Environment:** A 1m × 1m × 0.20m chamber with 11 maze layouts.
 * **Visual Input:** Monocular and binocular cameras, with Fog, Depth, Optical Flow, and Sensor Fusion.
 * **Neural Models:** LIF by default, with an optional ALIF surrogate model.
 * **Experiments:** Browser-based batch execution and result comparison.
@@ -209,7 +211,7 @@ The following limitations have also been identified.
 
 * **Sparse Neuron Activation:** Approximately 2–3% of neurons exceed their firing thresholds during ALIF cruise flight.
 
-* **Flight Test Coverage:** Flight tests were conducted across 9 maze types. Before-and-after AX comparisons were performed on 3 of these mazes, which overlapped with earlier tests: mazes 2, 6, and 7.
+* **Flight Test Coverage:** Flight tests were conducted across 9 of the 11 built-in maze types (open arena and S-maze excluded). One editable custom layout is also available. Before-and-after AX comparisons were performed on 3 of these mazes, which overlapped with earlier tests: mazes 2, 6, and 7.
 
 * **Environmental Validation Scope:** The experimental environments and maze types are limited. Due to development time constraints, systematic comparative analysis under diverse environmental changes was not sufficiently conducted. Further validation is needed across different maze structures, obstacle arrangements, and environmental conditions.
 
@@ -224,6 +226,12 @@ The following limitations have also been identified.
 * **Worker Comparison:** The m16 experiment had confounding between sensor conditions and execution machines. It is therefore not used as evidence for comparing sensor performance.
 
 * **Interpretation of Neuron Activity:** Firing saturation in LIF and adaptive responses in ALIF are hypothetical interpretations of the observed model behavior. Further analysis of neuron-level firing records is required before identifying them as direct causes of the performance difference.
+
+## Future Work
+
+* **Spatial memory (Mushroom Body):** a prototype module exists but is not wired into the flight loop; wiring and validation are next.
+* **Online learning (3-Factor R-STDP):** the learning pathway is connected but was disabled in all reported experiments; enabling and measuring learning effects is next.
+* **S-maze and occluded-goal navigation:** the reactive controller fails here today; spatial memory is the planned route to expansion.
 
 ## Source Structure
 
@@ -296,6 +304,7 @@ The following summarizes the Meta technologies used during the hackathon and the
 | Muse Spark (muse-spark-1.3-contributor, Muse Code CLI) | Muse Code CLI | Code generation, debugging, and documentation | 2,758 sessions (across all projects) |
 | Meta AI                    | Chat          | Hackathon and recording inquiries             | No logs available (simple inquiries) |
 | Muse Spark Open (muse-spark-open-1026, Baseten API) | Baseten API | Consultation, reviews, and log analysis | 58 calls · 262,708 tokens |
+| Ax (ax-platform 1.3.1, local Python) | Local batch | Parameter optimization studies, before/after comparison | Studies via ax_loop.py + ax-compare page, 0 API tokens |
 
 * **CLI (2026-10-27 to 2026-11-02, dashboard):** In 2,009M · Out 12.2M · 22.9k requests · 128 tool calls · 93.9% cache hit rate
 * **API (2026-10-29 to 2026-11-02, complete `credit_log`):** In 79,351 · Out 183,357 — 33 consultation/review tasks, 18 planning/documentation tasks, 1 narrative task, and 6 probes
@@ -316,7 +325,7 @@ Sources for the music and connectome visual materials used in the demo video are
 
 ## Patent
 
-As of November 2026, the Korean patent is at the **pre-filing preparation stage**.
+As of November 2026, the Korean patent application has been **filed**.
 
 The technology concerns a 3D flight-control method using binocular visual information processing and a Male CNS-based partial connectome neural circuit.
 
@@ -333,7 +342,7 @@ For the purpose of the Meta Global AI Developer Hackathon 2026, the author grant
 ## Screenshots
 
 <p align="center">
-  <img src="assets/screenshots/screenshot1.png" width="32%" alt="Screenshot 1" />
-  <img src="assets/screenshots/screenshot2.png" width="32%" alt="Screenshot 2" />
-  <img src="assets/screenshots/screenshot3.png" width="32%" alt="Screenshot 3" />
+  <img src="assets/screenshots/screenshot1.png" width="32%" alt="3D flight UI" />
+  <img src="assets/screenshots/screenshot2.png" width="32%" alt="Four sensor views" />
+  <img src="assets/screenshots/screenshot3.png" width="32%" alt="Multilab batch experiments" />
 </p>
